@@ -419,7 +419,11 @@ Logs/
 # IDE / tooling
 .vscode/
 .vs/
-.github/
+.github/*
+!.github/workflows/
+
+# Never commit this - see CLAUDE.md handling elsewhere in this session's repos
+CLAUDE.md
 
 # HTTP request files (Visual Studio)
 *.http

@@ -130,6 +130,9 @@ app.UseStaticFiles();
 app.UseAuthentication();
 app.UseAuthorization();
 
+// Liveness probe - no dependency checks, just confirms the process is up and serving.
+app.MapGet("/health", () => Results.Ok(new { status = "healthy" }));
+
 // Helper method to get user claims
 static (int userId, int householdId) GetUserClaims(ClaimsPrincipal user)
 {
