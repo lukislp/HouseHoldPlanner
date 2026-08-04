@@ -1,4 +1,4 @@
-# HouseholdPlanner
+# HouseHoldPlanner
 
 A self-hosted household management application built with Blazor WebAssembly and ASP.NET Core (.NET 10). Designed for families and shared households to coordinate tasks, meals, recipes, calendars, shopping lists, and real-time chat -- all in one place.
 
@@ -97,8 +97,8 @@ HaushaltsPlaner.Shared/                  # Shared models and DTOs
 Requires the [.NET 10 SDK](https://dotnet.microsoft.com/download).
 
 ```bash
-git clone https://github.com/lukislp/HouseholdPlanner.git
-cd HouseholdPlanner
+git clone https://github.com/lukislp/HouseHoldPlanner.git
+cd HouseHoldPlanner
 ```
 
 Set a JWT signing key (required -- the server refuses to start without one):
