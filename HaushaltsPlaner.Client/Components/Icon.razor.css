@@ -1,0 +1,10 @@
+.icon {
+    display: inline-block;
+    vertical-align: middle;
+    flex-shrink: 0;
+    line-height: 1;
+}
+
+.icon path {
+ transition: stroke 0.3s ease;
+}

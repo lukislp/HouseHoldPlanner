@@ -1,0 +1,763 @@
+﻿@page "/calendar"
+@using HaushaltsPlaner.Shared.DTOs
+@using HaushaltsPlaner.Client.Services
+@inject CalendarService CalendarService
+@inject NavigationManager Navigation
+@inject AuthenticationService AuthService
+@inject IJSRuntime JS
+@implements IDisposable
+@inherits LocalizedComponentBase
+
+<PageTitle>@I18n.Get("PageTitle_Calendar")</PageTitle>
+
+<div class="calendar-container">
+    <!-- Header -->
+    <div class="calendar-header">
+        <button class="back-btn" @onclick="GoBack">
+            <Icon Name="arrow-left" Size="20" Color="currentColor" />
+            @I18n.Get("Calendar_Back")
+        </button>
+        <h1 class="page-title">@I18n.Get("Calendar_Title")</h1>
+        <button class="add-event-btn" @onclick="ShowCreateEventModal">
+            <Icon Name="calendar" Size="20" Color="white" />
+            @I18n.Get("Calendar_NewEvent")
+        </button>
+    </div>
+
+    <!-- Month Navigation -->
+    <div class="month-navigation">
+        <button class="nav-btn" @onclick="PreviousMonth">
+            <Icon Name="arrow-left" Size="20" Color="currentColor" />
+        </button>
+        <h2 class="current-month">@currentDate.ToString("MMMM yyyy", CurrentCulture)</h2>
+        <button class="nav-btn" @onclick="NextMonth">
+            <Icon Name="arrow-left" Size="20" Color="currentColor" Style="transform: rotate(180deg);" />
+        </button>
+    </div>
+
+    <!-- Legend -->
+    <div class="legend">
+        <h3>@I18n.Get("Calendar_Persons")</h3>
+        <div class="legend-items">
+            <div class="legend-item">
+                <div class="color-box" style="background: #9ca3af;"></div>
+                <span>@I18n.Get("Calendar_Unassigned")</span>
+            </div>
+            @foreach (var member in householdMembers)
+            {
+                var color = GetColorForUser(member.Id);
+                <div class="legend-item">
+                    <div class="color-box" style="background: @color;"></div>
+                    <span>@member.FullName</span>
+                </div>
+            }
+        </div>
+    </div>
+
+    @if (isLoading)
+    {
+        <div class="loading-state">
+            <div class="spinner-large"></div>
+            <p>@I18n.Get("Calendar_Loading")</p>
+        </div>
+    }
+    else
+    {
+        <!-- Calendar Grid -->
+        <div class="calendar-grid">
+            <!-- Weekday Headers -->
+            <div class="calendar-header-row">
+                <div class="weekday-header">@I18n.Get("Calendar_WeekdayMo")</div>
+                <div class="weekday-header">@I18n.Get("Calendar_WeekdayTu")</div>
+                <div class="weekday-header">@I18n.Get("Calendar_WeekdayWe")</div>
+                <div class="weekday-header">@I18n.Get("Calendar_WeekdayTh")</div>
+                <div class="weekday-header">@I18n.Get("Calendar_WeekdayFr")</div>
+                <div class="weekday-header">@I18n.Get("Calendar_WeekdaySa")</div>
+                <div class="weekday-header">@I18n.Get("Calendar_WeekdaySu")</div>
+            </div>
+
+            <!-- Calendar Days -->
+            @foreach (var day in calendarDays)
+            {
+                <div class="calendar-day @(day.IsCurrentMonth ? "" : "other-month") @(day.IsToday ? "today" : "")"
+                     @onclick="() => ShowCreateEventForDate(day.Date)">
+                    <div class="day-number">@day.Day</div>
+                    <div class="day-events">
+                        @foreach (var evt in day.Events.Take(3))
+                        {
+                            <div class="event-pill" style="background: @evt.Color;" @onclick:stopPropagation="true" @onclick="() => ShowEventDetail(evt)">
+                                @if (!evt.IsAllDay)
+                                {
+                                    <span class="event-time">@GetEventTimeRange(evt)</span>
+                                }
+                                <span class="event-title">@evt.Title</span>
+                            </div>
+                        }
+                        @if (day.Events.Count > 3)
+                        {
+                            <div class="more-events">@I18n.Format("Calendar_More", day.Events.Count - 3)</div>
+                        }
+                    </div>
+                </div>
+            }
+        </div>
+    }
+
+    <!-- Create/Edit Event Modal -->
+    @if (showEventModal)
+    {
+        <div class="modal-overlay" @onclick="CloseEventModal">
+            <div class="modal-content" @onclick:stopPropagation="true">
+                <div class="modal-header">
+                    <h2>@(editingEvent != null ? I18n.Get("Calendar_ModalEdit") : I18n.Get("Calendar_ModalNew"))</h2>
+                    <button class="close-btn" @onclick="CloseEventModal">
+                        <Icon Name="x" Size="24" Color="#6b7280" />
+                    </button>
+                </div>
+
+                <div class="modal-body">
+                    <div class="form-group">
+                        <label>@I18n.Get("Calendar_FieldTitle")</label>
+                        <input type="text" class="form-control" @bind="eventTitle" placeholder="@I18n.Get("Calendar_TitlePlaceholder")" />
+                    </div>
+
+                    <div class="form-group">
+                        <label>@I18n.Get("Calendar_FieldDesc")</label>
+                        <textarea class="form-control" @bind="eventDescription" rows="3" placeholder="@I18n.Get("Calendar_DescPlaceholder")"></textarea>
+                    </div>
+
+                    <div class="form-group">
+                        <label class="checkbox-label">
+                            <input type="checkbox" @bind="eventIsAllDay" @bind:after="OnAllDayChanged" />
+                            <span>@I18n.Get("Calendar_AllDay")</span>
+                        </label>
+                    </div>
+
+                    @if (!eventIsAllDay)
+                    {
+                        <div class="time-section">
+                            <h4>@I18n.Get("Calendar_TimeSection")</h4>
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <label>@I18n.Get("Calendar_TimeFrom")</label>
+                                    <input type="time" class="form-control" value="@eventStartTime" @oninput="@((e) => eventStartTime = e.Value?.ToString())" />
+                                </div>
+
+                                <div class="form-group">
+                                    <label>@I18n.Get("Calendar_TimeTo")</label>
+                                    <input type="time" class="form-control" value="@eventEndTime" @oninput="@((e) => eventEndTime = e.Value?.ToString())" />
+                                </div>
+                            </div>
+                        </div>
+                    }
+
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>@I18n.Get("Calendar_StartDate")</label>
+                            <input type="date" class="form-control" value="@eventStartDateOnly" @oninput="@((e) => eventStartDateOnly = e.Value?.ToString() ?? DateTime.Now.ToString("yyyy-MM-dd"))" />
+                        </div>
+
+                        <div class="form-group">
+                            <label>@I18n.Get("Calendar_EndDate")</label>
+                            <input type="date" class="form-control" value="@eventEndDateOnly" @oninput="@((e) => eventEndDateOnly = e.Value?.ToString())" />
+                        </div>
+                    </div>
+
+                    <div class="form-group">
+                        <label>@I18n.Get("Calendar_Location")</label>
+                        <input type="text" class="form-control" @bind="eventLocation" placeholder="@I18n.Get("Calendar_LocationPlaceholder")" />
+                    </div>
+
+                    <div class="form-group">
+                        <label>@I18n.Get("Calendar_AssignedTo")</label>
+                        <select class="form-control" @bind="eventAssignedTo">
+                            <option value="">@I18n.Get("Calendar_Nobody")</option>
+                            @foreach (var member in householdMembers)
+                            {
+                                <option value="@member.Id">@member.FullName</option>
+                            }
+                        </select>
+                    </div>
+
+                    <div class="form-group">
+                        <label>@I18n.Get("Calendar_Color")</label>
+                        <div class="color-picker">
+                            @foreach (var color in availableColors)
+                            {
+                                <div class="color-option @(eventColor == color ? "selected" : "")"
+                                     style="background: @color;"
+                                     @onclick="() => eventColor = color"></div>
+                            }
+                        </div>
+                    </div>
+
+                    @if (editingEvent == null)
+                    {
+                        <div class="form-group recurring-section">
+                            <label class="checkbox-label">
+                                <input type="checkbox" @bind="eventIsRecurring" />
+                                <span>@I18n.Get("Calendar_Recurring")</span>
+                            </label>
+
+                            @if (eventIsRecurring)
+                            {
+                                <div class="recurring-options">
+                                    <div class="form-group">
+                                        <label>@I18n.Get("Calendar_RecurrenceType")</label>
+                                        <select class="form-control" @bind="eventRecurrenceType">
+                                            <option value="Weekly">@I18n.Get("Calendar_RecurrenceWeekly")</option>
+                                            <option value="Monthly">@I18n.Get("Calendar_RecurrenceMonthly")</option>
+                                            <option value="Yearly">@I18n.Get("Calendar_RecurrenceYearly")</option>
+                                        </select>
+                                    </div>
+
+                                    <div class="form-group">
+                                        <label>@I18n.Get("Calendar_RecurrenceInterval")</label>
+                                        <input type="number" class="form-control" @bind="eventRecurrenceInterval" min="1" placeholder="1" />
+                                    </div>
+
+                                    <div class="form-group">
+                                        <label>@I18n.Get("Calendar_RecurrenceEnd")</label>
+                                        <input type="date" class="form-control" value="@eventRecurrenceEndDateOnly" @oninput="@((e) => eventRecurrenceEndDateOnly = e.Value?.ToString())" />
+                                    </div>
+                                </div>
+                            }
+                        </div>
+                    }
+                </div>
+
+                <div class="modal-footer">
+                    <button class="btn-secondary" @onclick="CloseEventModal">@I18n.Get("Calendar_BtnCancel")</button>
+                    <button class="btn-primary" @onclick="SaveEvent">
+                        @(editingEvent != null ? I18n.Get("Calendar_BtnSave") : I18n.Get("Calendar_BtnCreate"))
+                    </button>
+                </div>
+            </div>
+        </div>
+    }
+
+    <!-- Event Detail Modal -->
+    @if (selectedEvent != null)
+    {
+        <div class="modal-overlay" @onclick="CloseEventDetail">
+            <div class="modal-content small" @onclick:stopPropagation="true">
+                <div class="modal-header">
+                    <h2>@selectedEvent.Title</h2>
+                    <div class="header-actions">
+                        <button class="icon-btn" @onclick="() => ShowEditEventModal(selectedEvent)">
+                            <Icon Name="settings" Size="20" Color="#6b7280" />
+                        </button>
+                        <button class="icon-btn delete" @onclick="() => DeleteEvent(selectedEvent.Id)">
+                            <Icon Name="trash" Size="20" Color="#ef4444" />
+                        </button>
+                        <button class="close-btn" @onclick="CloseEventDetail">
+                            <Icon Name="x" Size="24" Color="#6b7280" />
+                        </button>
+                    </div>
+                </div>
+
+                <div class="modal-body event-detail">
+                    @if (!string.IsNullOrEmpty(selectedEvent.Description))
+                    {
+                        <div class="detail-item">
+                            <Icon Name="list" Size="20" Color="#667eea" />
+                            <div>
+                                <strong>@I18n.Get("Calendar_DetailDesc")</strong>
+                                <p>@selectedEvent.Description</p>
+                            </div>
+                        </div>
+                    }
+
+                    <div class="detail-item">
+                        <Icon Name="calendar" Size="20" Color="#667eea" />
+                        <div>
+                            <strong>@(selectedEvent.IsAllDay ? I18n.Get("Calendar_DetailDate") : I18n.Get("Calendar_DetailStart"))</strong>
+                            <p>@GetEventDateTimeDisplay(selectedEvent.StartDate, selectedEvent.IsAllDay)</p>
+                        </div>
+                    </div>
+
+                    @if (selectedEvent.EndDate.HasValue)
+                    {
+                        var showEndDate = selectedEvent.IsAllDay ||
+                          selectedEvent.EndDate.Value.Date != selectedEvent.StartDate.Date ||
+                              selectedEvent.EndDate.Value.TimeOfDay != TimeSpan.Zero;
+        
+                        if (showEndDate)
+                        {
+                            <div class="detail-item">
+                                <Icon Name="calendar" Size="20" Color="#667eea" />
+                                <div>
+                                    <strong>@I18n.Get("Calendar_DetailEnd")</strong>
+                                    <p>@GetEventDateTimeDisplay(selectedEvent.EndDate.Value, selectedEvent.IsAllDay)</p>
+                                </div>
+                            </div>
+                        }
+                    }
+
+                    @if (!string.IsNullOrEmpty(selectedEvent.Location))
+                    {
+                        <div class="detail-item">
+                            <Icon Name="location" Size="20" Color="#667eea" />
+                            <div>
+                                <strong>@I18n.Get("Calendar_DetailLocation")</strong>
+                                <p>@selectedEvent.Location</p>
+                            </div>
+                        </div>
+                    }
+
+                    @if (!string.IsNullOrEmpty(selectedEvent.AssignedToName))
+                    {
+                        <div class="detail-item">
+                            <Icon Name="user" Size="20" Color="#667eea" />
+                            <div>
+                                <strong>@I18n.Get("Calendar_DetailAssigned")</strong>
+                                <p>@selectedEvent.AssignedToName</p>
+                            </div>
+                        </div>
+                    }
+
+                    @if (selectedEvent.IsRecurring)
+                    {
+                        <div class="detail-item">
+                            <Icon Name="calendar" Size="20" Color="#667eea" />
+                            <div>
+                                <strong>@I18n.Get("Calendar_DetailRecurrence")</strong>
+                                <p>@GetRecurrenceText(selectedEvent)</p>
+                            </div>
+                        </div>
+                    }
+
+                    @if (!string.IsNullOrEmpty(selectedEvent.CreatedByName))
+                    {
+                        <div class="detail-item">
+                            <Icon Name="user" Size="20" Color="#9ca3af" />
+                            <div>
+                                <strong>@I18n.Get("Calendar_DetailCreatedBy")</strong>
+                                <p>@selectedEvent.CreatedByName</p>
+                            </div>
+                        </div>
+                    }
+                </div>
+            </div>
+        </div>
+    }
+</div>
+
+@code {
+    private DateTime currentDate = DateTime.Now;
+    private List<CalendarDayDto> calendarDays = new();
+    private List<CalendarEventDto> currentMonthEvents = new();
+    private List<UserDto> householdMembers = new();
+
+    private bool isLoading = true;
+    private System.Threading.Timer? refreshTimer;
+    private const int RefreshIntervalSeconds = 60;
+    
+    // Event Modal
+    private bool showEventModal = false;
+    private CalendarEventDto? editingEvent;
+    private string eventTitle = "";
+    private string eventDescription = "";
+    private string eventStartDateOnly = DateTime.Now.ToString("yyyy-MM-dd");
+    private string? eventEndDateOnly;
+    private string? eventStartTime;
+    private string? eventEndTime;
+    private bool eventIsAllDay = false;
+    private string eventLocation = "";
+    private string eventAssignedTo = "";
+    private string eventColor = "#667eea";
+    private bool eventIsRecurring = false;
+    private string eventRecurrenceType = "Weekly";
+    private int eventRecurrenceInterval = 1;
+    private string? eventRecurrenceEndDateOnly;
+
+    // Event Detail
+    private CalendarEventDto? selectedEvent;
+
+    private readonly string[] availableColors = new[]
+    {
+        "#667eea", "#f093fb", "#4facfe", "#43e97b", "#fa709a",
+        "#30cfd0", "#a8edea", "#feb692", "#ff6b6b", "#4ecdc4"
+    };
+
+    protected override async Task OnInitializedAsync()
+    {
+        var isAuthenticated = await AuthService.IsAuthenticatedAsync();
+        if (!isAuthenticated)
+        {
+            Navigation.NavigateTo("/login");
+            return;
+        }
+
+        householdMembers = await CalendarService.GetHouseholdMembersAsync();
+        await LoadMonth();
+        
+        // Start auto-refresh
+        StartAutoRefresh();
+    }
+    
+    private void StartAutoRefresh()
+    {
+        refreshTimer = new System.Threading.Timer(async _ =>
+     {
+         try
+         {
+             await InvokeAsync(async () =>
+                  {
+                      await LoadMonthQuiet();
+                      StateHasChanged();
+                  });
+         }
+         catch (Exception ex)
+         {
+             Console.WriteLine($"Auto-refresh error: {ex.Message}");
+         }
+     }, null, TimeSpan.FromSeconds(RefreshIntervalSeconds), TimeSpan.FromSeconds(RefreshIntervalSeconds));
+    }
+
+    private async Task LoadMonth()
+    {
+        isLoading = true;
+        try
+        {
+            await LoadMonthLogic();
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+    
+    // Quiet refresh without loading spinner
+    private async Task LoadMonthQuiet()
+    {
+        try
+        {
+            await LoadMonthLogic();
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error loading month (quiet): {ex.Message}");
+        }
+    }
+    
+    private async Task LoadMonthLogic()
+    {
+        var monthData = await CalendarService.GetMonthEventsAsync(currentDate.Year, currentDate.Month);
+        if (monthData != null)
+        {
+            currentMonthEvents = monthData.Events;
+            GenerateCalendarDays();
+        }
+    }
+
+    private void GenerateCalendarDays()
+    {
+        calendarDays.Clear();
+   
+        var firstDayOfMonth = new DateTime(currentDate.Year, currentDate.Month, 1);
+        var lastDayOfMonth = firstDayOfMonth.AddMonths(1).AddDays(-1);
+
+        var startDate = firstDayOfMonth;
+        while (startDate.DayOfWeek != DayOfWeek.Monday)
+        {
+            startDate = startDate.AddDays(-1);
+        }
+  
+        for (int i = 0; i < 42; i++)
+        {
+            var date = startDate.AddDays(i);
+            var dayEvents = currentMonthEvents
+                   .Where(e => e.StartDate.Date == date.Date)
+                 .OrderBy(e => e.StartDate)
+                 .ToList();
+
+            calendarDays.Add(new CalendarDayDto
+            {
+                Date = date,
+                Day = date.Day,
+                IsCurrentMonth = date.Month == currentDate.Month,
+                IsToday = date.Date == DateTime.Today,
+                Events = dayEvents
+            });
+        }
+    }
+
+    private async Task PreviousMonth()
+    {
+        currentDate = currentDate.AddMonths(-1);
+        await LoadMonth();
+    }
+
+    private async Task NextMonth()
+    {
+        currentDate = currentDate.AddMonths(1);
+        await LoadMonth();
+    }
+
+    private void ShowEventDetail(CalendarEventDto evt)
+    {
+        selectedEvent = evt;
+    }
+
+    private void CloseEventDetail()
+    {
+        selectedEvent = null;
+    }
+
+    // Event CRUD
+    private void ShowCreateEventModal()
+    {
+        ResetEventForm();
+        showEventModal = true;
+    }
+
+    private void ShowCreateEventForDate(DateTime date)
+    {
+        ResetEventForm();
+        eventStartDateOnly = date.ToString("yyyy-MM-dd");
+        showEventModal = true;
+    }
+
+    private void ResetEventForm()
+    {
+        editingEvent = null;
+        eventTitle = "";
+        eventDescription = "";
+        eventStartDateOnly = DateTime.Now.ToString("yyyy-MM-dd");
+        eventEndDateOnly = null;
+        eventStartTime = null;
+        eventEndTime = null;
+        eventIsAllDay = false;
+        eventLocation = "";
+        eventAssignedTo = "";
+        eventColor = "#667eea";
+        eventIsRecurring = false;
+        eventRecurrenceType = "Weekly";
+        eventRecurrenceInterval = 1;
+        eventRecurrenceEndDateOnly = null;
+    }
+
+    private void ShowEditEventModal(CalendarEventDto evt)
+    {
+        CloseEventDetail();
+        editingEvent = evt;
+        eventTitle = evt.Title;
+        eventDescription = evt.Description ?? "";
+        eventStartDateOnly = evt.StartDate.ToString("yyyy-MM-dd");
+        eventEndDateOnly = evt.EndDate?.ToString("yyyy-MM-dd");
+        
+        // Extract time if not all-day
+        if (!evt.IsAllDay && evt.StartDate.TimeOfDay != TimeSpan.Zero)
+        {
+            eventStartTime = evt.StartDate.ToString("HH:mm");
+            eventEndTime = evt.EndDate?.ToString("HH:mm");
+        }
+        else
+        {
+            eventStartTime = null;
+            eventEndTime = null;
+        }
+     
+        eventIsAllDay = evt.IsAllDay;
+        eventLocation = evt.Location ?? "";
+        eventAssignedTo = evt.AssignedToUserId?.ToString() ?? "";
+        eventColor = evt.Color ?? "#667eea";
+        showEventModal = true;
+    }
+
+    private void OnAllDayChanged()
+    {
+        if (eventIsAllDay)
+        {
+            eventStartTime = null;
+            eventEndTime = null;
+        }
+    }
+
+    private void CloseEventModal()
+    {
+        showEventModal = false;
+        editingEvent = null;
+    }
+
+    private DateTime CombineDateAndTime(string dateStr, string? timeStr)
+    {
+        var date = DateTime.Parse(dateStr);
+        
+        if (!string.IsNullOrEmpty(timeStr) && TimeSpan.TryParse(timeStr, out var time))
+        {
+            return date.Add(time);
+        }
+    
+        return date;
+    }
+
+    private async Task SaveEvent()
+    {
+        if (string.IsNullOrWhiteSpace(eventTitle)) return;
+
+        try
+        {
+            var startDate = CombineDateAndTime(eventStartDateOnly, eventIsAllDay ? null : eventStartTime);
+            DateTime? endDate = null;
+            
+            // Set end date/time
+            if (!string.IsNullOrEmpty(eventEndDateOnly))
+            {
+                // Explicit end date set
+                endDate = CombineDateAndTime(eventEndDateOnly, eventIsAllDay ? null : eventEndTime);
+            }
+            else if (!eventIsAllDay && !string.IsNullOrEmpty(eventEndTime))
+            {
+                // Only end time set, use start date
+                endDate = CombineDateAndTime(eventStartDateOnly, eventEndTime);
+            }
+
+            if (editingEvent != null)
+            {
+                var request = new UpdateCalendarEventRequest
+                {
+                    Id = editingEvent.Id,
+                    Title = eventTitle,
+                    Description = eventDescription,
+                    StartDate = startDate,
+                    EndDate = endDate,
+                    IsAllDay = eventIsAllDay,
+                    Location = eventLocation,
+                    Color = eventColor,
+                    AssignedToUserId = string.IsNullOrEmpty(eventAssignedTo) ? null : int.Parse(eventAssignedTo)
+                };
+                await CalendarService.UpdateEventAsync(request);
+            }
+            else
+            {
+                DateTime? recurrenceEndDate = null;
+                if (!string.IsNullOrEmpty(eventRecurrenceEndDateOnly))
+                {
+                    recurrenceEndDate = DateTime.Parse(eventRecurrenceEndDateOnly);
+                }
+
+                var request = new CreateCalendarEventRequest
+                {
+                    Title = eventTitle,
+                    Description = eventDescription,
+                    StartDate = startDate,
+                    EndDate = endDate,
+                    IsAllDay = eventIsAllDay,
+                    Location = eventLocation,
+                    Color = eventColor,
+                    AssignedToUserId = string.IsNullOrEmpty(eventAssignedTo) ? null : int.Parse(eventAssignedTo),
+                    IsRecurring = eventIsRecurring,
+                    RecurrenceType = eventRecurrenceType,
+                    RecurrenceInterval = eventIsRecurring ? eventRecurrenceInterval : null,
+                    RecurrenceEndDate = eventIsRecurring ? recurrenceEndDate : null
+                };
+                await CalendarService.CreateEventAsync(request);
+            }
+
+            await LoadMonth();
+            CloseEventModal();
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error saving event: {ex.Message}");
+        }
+    }
+
+    private async Task DeleteEvent(int id)
+    {
+        if (!await JS.InvokeAsync<bool>("confirm", I18n.Get("Calendar_ConfirmDelete"))) return;
+
+        try
+        {
+            await CalendarService.DeleteEventAsync(id);
+            await LoadMonth();
+            CloseEventDetail();
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error deleting event: {ex.Message}");
+        }
+    }
+
+    private string GetColorForUser(int userId)
+    {
+        return availableColors[userId % availableColors.Length];
+    }
+
+    private string GetEventTimeRange(CalendarEventDto evt)
+    {
+        if (evt.IsAllDay)
+            return "";
+    
+        if (evt.StartDate.TimeOfDay == TimeSpan.Zero && (!evt.EndDate.HasValue || evt.EndDate.Value.TimeOfDay == TimeSpan.Zero))
+            return "";
+ 
+        var startTime = evt.StartDate.ToString("HH:mm");
+        
+        if (evt.EndDate.HasValue && evt.EndDate.Value.TimeOfDay != TimeSpan.Zero)
+        {
+            var endTime = evt.EndDate.Value.ToString("HH:mm");
+            return $"{startTime}-{endTime}";
+        }
+        
+        return startTime;
+    }
+
+    private string GetEventDateTimeDisplay(DateTime dateTime, bool isAllDay)
+    {
+        if (isAllDay)
+        {
+            return dateTime.ToString("dd.MM.yyyy");
+        }
+        else if (dateTime.TimeOfDay != TimeSpan.Zero)
+        {
+            return dateTime.ToString("dd.MM.yyyy HH:mm") + I18n.Get("Calendar_Uhr");
+        }
+        else
+        {
+            return dateTime.ToString("dd.MM.yyyy");
+        }
+    }
+
+    private string GetRecurrenceText(CalendarEventDto evt)
+    {
+        var interval = evt.RecurrenceInterval ?? 1;
+        var type = evt.RecurrenceType.ToLower();
+      
+        var text = type switch
+        {
+            "weekly" => interval == 1 ? I18n.Get("Calendar_Recurrence_Weekly") : I18n.Format("Calendar_Recurrence_WeeklyN", interval),
+            "monthly" => interval == 1 ? I18n.Get("Calendar_Recurrence_Monthly") : I18n.Format("Calendar_Recurrence_MonthlyN", interval),
+            "yearly" => interval == 1 ? I18n.Get("Calendar_Recurrence_Yearly") : I18n.Format("Calendar_Recurrence_YearlyN", interval),
+            _ => I18n.Get("Calendar_Recurrence_Once")
+        };
+
+        if (evt.RecurrenceEndDate.HasValue)
+        {
+            text += I18n.Get("Calendar_RecurrenceUntil") + evt.RecurrenceEndDate.Value.ToString("dd.MM.yyyy");
+        }
+
+        return text;
+    }
+
+    private void GoBack()
+    {
+        Navigation.NavigateTo("/home");
+    }
+    
+    public void Dispose()
+    {
+        refreshTimer?.Dispose();
+    }
+
+    public class CalendarDayDto
+    {
+        public DateTime Date { get; set; }
+        public int Day { get; set; }
+        public bool IsCurrentMonth { get; set; }
+        public bool IsToday { get; set; }
+        public List<CalendarEventDto> Events { get; set; } = new();
+    }
+}

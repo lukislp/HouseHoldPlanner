@@ -1,0 +1,350 @@
+﻿@page "/chat"
+@using HaushaltsPlaner.Shared.DTOs
+@using HaushaltsPlaner.Client.Services
+@inject ChatService ChatService
+@inject AuthenticationService AuthService
+@inject NavigationManager Navigation
+@inject IJSRuntime JS
+@inject IConfiguration Configuration
+@implements IAsyncDisposable
+@inherits LocalizedComponentBase
+
+<PageTitle>@I18n.Get("PageTitle_Chat")</PageTitle>
+
+<div class="chat-container">
+    <!-- Header -->
+    <div class="chat-header">
+        <button class="back-btn" @onclick="GoBack">
+            <Icon Name="arrow-left" Size="20" Color="currentColor" />
+            @I18n.Get("Chat_Back")
+        </button>
+        <h1 class="page-title">@I18n.Get("Chat_Title")</h1>
+        <div class="chat-status">
+            @if (ChatService.IsConnected)
+            {
+                <span class="status-indicator online"></span>
+                <span>@I18n.Get("Chat_Online")</span>
+            }
+            else
+            {
+                <span class="status-indicator offline"></span>
+                <span>@I18n.Get("Chat_Offline")</span>
+            }
+        </div>
+    </div>
+
+    @if (isLoading)
+    {
+        <div class="loading-state">
+            <div class="spinner"></div>
+            <p>@I18n.Get("Chat_Loading")</p>
+        </div>
+    }
+    else
+    {
+        <!-- Chat Messages -->
+        <div class="messages-container" @ref="messagesContainer">
+            @if (messages.Count == 0)
+            {
+                <div class="empty-state">
+                    <Icon Name="message" Size="64" Color="#9ca3af" />
+                    <h2>@I18n.Get("Chat_EmptyTitle")</h2>
+                    <p>@I18n.Get("Chat_EmptyDesc")</p>
+                </div>
+            }
+            else
+            {
+                @foreach (var message in messages)
+                {
+                    var isOwnMessage = message.SenderUserId == currentUserId;
+
+                    <div class="message @(isOwnMessage ? "own-message" : "other-message")">
+                        @if (!isOwnMessage)
+                        {
+                            <div class="message-avatar">
+                                @if (!string.IsNullOrEmpty(message.SenderProfileImageUrl))
+                                {
+                                    <img src="@GetProfileImageUrl(message.SenderProfileImageUrl)" alt="@message.SenderName" />
+                                }
+                                else
+                                {
+                                    <img src="https://ui-avatars.com/api/?name=@message.SenderName&background=667eea&color=fff&size=40&rounded=true" alt="@message.SenderName" />
+                                }
+                            </div>
+                        }
+      
+                        <div class="message-content">
+                            @if (!isOwnMessage)
+                            {
+                                <div class="message-sender">@message.SenderName</div>
+                            }
+                            <div class="message-bubble">
+                                <p>@message.Content</p>
+                            </div>
+                            <div class="message-time">
+                                @message.CreatedAt.ToLocalTime().ToString("HH:mm")
+                                @if (isOwnMessage && message.IsRead)
+                                {
+                                    <Icon Name="check" Size="14" Color="#10b981" />
+                                }
+                            </div>
+                        </div>
+                    </div>
+                }
+            }
+            
+            <!-- Typing Indicator -->
+            @if (!string.IsNullOrEmpty(typingUser))
+            {
+                <div class="typing-indicator">
+                    <span>@I18n.Format("Chat_IsTyping", typingUser)</span>
+                    <div class="typing-dots">
+                        <span></span><span></span><span></span>
+                    </div>
+                </div>
+            }
+        </div>
+
+        <!-- Message Input -->
+        <div class="message-input-container">
+            <textarea class="message-input"
+                      placeholder="@I18n.Get("Chat_InputPlaceholder")"
+                      @bind="newMessage"
+                      @bind:event="oninput"
+                      @onkeydown="HandleKeyDown"
+                      @onfocus="OnInputFocus"
+                      @onblur="OnInputBlur"
+                      rows="1"></textarea>
+            <button class="send-btn"
+                    @onclick="SendMessage"
+                    disabled="@(string.IsNullOrWhiteSpace(newMessage) || !ChatService.IsConnected)">
+                <Icon Name="send" Size="20" Color="white" />
+            </button>
+        </div>
+    }
+</div>
+
+@code {
+    private ElementReference messagesContainer;
+    private List<ChatMessageDto> messages = new();
+    private string newMessage = "";
+    private string? typingUser;
+    private int? currentUserId;
+    private bool isLoading = true;
+    private System.Threading.Timer? typingTimer;
+    private bool isTyping = false;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var isAuthenticated = await AuthService.IsAuthenticatedAsync();
+        if (!isAuthenticated)
+        {
+            Navigation.NavigateTo("/login");
+            return;
+        }
+
+        currentUserId = await AuthService.GetUserIdAsync();
+        // SignalR event handlers
+        ChatService.OnMessageReceived += OnMessageReceived;
+        ChatService.OnMessageRead += OnMessageRead;
+        ChatService.OnMessageDeleted += OnMessageDeleted;
+        ChatService.OnUserTyping += OnUserTyping;
+        ChatService.OnReconnected += OnReconnected;
+
+        await LoadMessages();
+        await ChatService.StartConnectionAsync();
+        
+        isLoading = false;
+    }
+
+    private async Task LoadMessages()
+    {
+        try
+        {
+            messages = await ChatService.GetChatHistoryAsync();
+            await ScrollToBottom();
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error loading messages: {ex.Message}");
+        }
+    }
+
+    private async Task SendMessage()
+    {
+        if (string.IsNullOrWhiteSpace(newMessage)) return;
+
+        try
+        {
+            var request = new SendMessageRequest { Content = newMessage.Trim() };
+            var sentMessage = await ChatService.SendMessageAsync(request);
+            
+            if (sentMessage != null)
+            {
+                // Message is received via SignalR
+                newMessage = "";
+                await StopTypingIndicator();
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error sending message: {ex.Message}");
+        }
+    }
+
+    private void OnMessageReceived(ChatMessageDto message)
+    {
+        InvokeAsync(async () =>
+           {
+               messages.Add(message);
+               StateHasChanged();
+               await ScrollToBottom();
+    
+               // Mark as read, but only if it's NOT our own message
+               if (message.SenderUserId != currentUserId && !message.IsRead)
+               {
+                   await ChatService.MarkAsReadAsync(message.Id);
+               }
+           });
+    }
+
+    private void OnMessageRead(int messageId, int userId)
+    {
+        InvokeAsync(() =>
+      {
+          var message = messages.FirstOrDefault(m => m.Id == messageId);
+          if (message != null)
+          {
+              message.IsRead = true;
+              message.ReadAt = DateTime.UtcNow;
+              StateHasChanged();
+          }
+      });
+    }
+
+    private void OnMessageDeleted(int messageId)
+    {
+        InvokeAsync(() =>
+        {
+            var message = messages.FirstOrDefault(m => m.Id == messageId);
+            if (message != null)
+            {
+                messages.Remove(message);
+                StateHasChanged();
+            }
+        });
+    }
+
+    private void OnUserTyping(string userName, bool typing)
+    {
+        InvokeAsync(() =>
+       {
+           typingUser = typing ? userName : null;
+           StateHasChanged();
+       });
+    }
+
+    private void OnReconnected()
+    {
+        InvokeAsync(async () =>
+ {
+     await LoadMessages();
+     StateHasChanged();
+ });
+    }
+
+    private async Task HandleKeyDown(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter" && !e.ShiftKey)
+        {
+            await SendMessage();
+        }
+        else
+        {
+            await StartTypingIndicator();
+        }
+    }
+
+    private async Task OnInputFocus()
+    {
+        // Markiere nur FREMDE ungelesene Nachrichten als gelesen
+        var unreadMessages = messages.Where(m =>
+          m.SenderUserId != currentUserId &&  // Only mark messages from others as read
+            !m.IsRead);
+            
+        foreach (var message in unreadMessages)
+        {
+            await ChatService.MarkAsReadAsync(message.Id);
+        }
+    }
+
+    private async Task OnInputBlur()
+    {
+        await StopTypingIndicator();
+    }
+
+    private async Task StartTypingIndicator()
+    {
+        if (!isTyping && ChatService.IsConnected)
+        {
+            isTyping = true;
+            await ChatService.SendTypingIndicatorAsync(true);
+        }
+
+        // Reset timer
+        typingTimer?.Dispose();
+        typingTimer = new System.Threading.Timer(_ =>
+        {
+            InvokeAsync(StopTypingIndicator);
+        }, null, 3000, Timeout.Infinite);
+    }
+
+    private async Task StopTypingIndicator()
+    {
+        if (isTyping && ChatService.IsConnected)
+        {
+            isTyping = false;
+            await ChatService.SendTypingIndicatorAsync(false);
+        }
+        typingTimer?.Dispose();
+    }
+
+    private async Task ScrollToBottom()
+    {
+        try
+        {
+            await JS.InvokeVoidAsync("eval", @"
+        var container = document.querySelector('.messages-container');
+                if (container) container.scrollTop = container.scrollHeight;
+       ");
+        }
+        catch { }
+    }
+
+    private string GetProfileImageUrl(string profileImageUrl)
+    {
+        if (profileImageUrl.StartsWith("http"))
+            return profileImageUrl;
+    
+        // Use server URL from config instead of Navigation.BaseUri
+        var serverUrl = Configuration["ServerUrl"] ?? "http://localhost:5242";
+        return $"{serverUrl.TrimEnd('/')}{profileImageUrl}";
+    }
+
+    private void GoBack()
+    {
+        Navigation.NavigateTo("/home");
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        ChatService.OnMessageReceived -= OnMessageReceived;
+        ChatService.OnMessageRead -= OnMessageRead;
+        ChatService.OnMessageDeleted -= OnMessageDeleted;
+        ChatService.OnUserTyping -= OnUserTyping;
+        ChatService.OnReconnected -= OnReconnected;
+   
+        typingTimer?.Dispose();
+        await StopTypingIndicator();
+    }
+}

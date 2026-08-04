@@ -1,0 +1,816 @@
+﻿@page "/recipes"
+@using HaushaltsPlaner.Shared.DTOs
+@using HaushaltsPlaner.Client.Services
+@inject RecipeService RecipeService
+@inject NavigationManager Navigation
+@inject AuthenticationService AuthService
+@inject IJSRuntime JS
+@inherits LocalizedComponentBase
+
+<PageTitle>@I18n.Get("PageTitle_Recipes")</PageTitle>
+
+<div class="recipes-container">
+    <!-- Header -->
+    <div class="recipes-header">
+        <button class="back-btn" @onclick="GoBack">
+            <Icon Name="arrow-left" Size="20" Color="currentColor" />
+            @I18n.Get("Recipes_Back")
+        </button>
+        <h1 class="page-title">@I18n.Get("Recipes_Title")</h1>
+        <div class="header-actions">
+            <button class="add-recipe-btn secondary" @onclick="ShowImportModal">
+                <Icon Name="download" Size="20" Color="currentColor" />
+                @I18n.Get("Recipes_BtnImport")
+            </button>
+            <button class="add-recipe-btn" @onclick="ShowCreateRecipeModal">
+                <Icon Name="utensils" Size="20" Color="white" />
+                @I18n.Get("Recipes_BtnNew")
+            </button>
+        </div>
+    </div>
+
+    <!-- Category Filter -->
+    @if (categories.Count > 0)
+    {
+        <div class="category-filter">
+            <button class="filter-btn @(selectedCategory == "" ? "active" : "")"
+                    @onclick='() => FilterByCategory("")'>
+                @I18n.Get("Recipes_FilterAll") (@recipes.Count)
+            </button>
+            @foreach (var category in categories)
+            {
+                var count = recipes.Count(r => r.Category == category);
+                <button class="filter-btn @(selectedCategory == category ? "active" : "")"
+                        @onclick='() => FilterByCategory(category)'>
+                    @TranslateCategory(category) (@count)
+                </button>
+            }
+        </div>
+    }
+
+    @if (isLoading)
+    {
+        <div class="loading-state">
+            <div class="spinner-large"></div>
+            <p>@I18n.Get("Recipes_Loading")</p>
+        </div>
+    }
+    else if (filteredRecipes.Count == 0)
+    {
+        <div class="empty-state">
+            <Icon Name="utensils" Size="64" Color="#9ca3af" />
+            <h2>@I18n.Get("Recipes_EmptyTitle")</h2>
+            <p>@I18n.Get("Recipes_EmptyDesc")</p>
+            <button class="btn-primary" @onclick="ShowCreateRecipeModal">
+                <Icon Name="utensils" Size="20" Color="white" />
+                @I18n.Get("Recipes_BtnCreate")
+            </button>
+        </div>
+    }
+    else
+    {
+        <!-- Recipe Grid -->
+        <div class="recipe-grid">
+            @foreach (var recipe in filteredRecipes)
+            {
+                <div class="recipe-card" @onclick="() => ShowRecipeDetail(recipe.Id)">
+                    <div class="recipe-card-header">
+                        <h3>@recipe.Name</h3>
+                        @if (!string.IsNullOrEmpty(recipe.Category))
+                        {
+                            <span class="recipe-category">@TranslateCategory(recipe.Category)</span>
+                        }
+                    </div>
+    
+                    @if (!string.IsNullOrEmpty(recipe.Description))
+                    {
+                        <p class="recipe-description">@recipe.Description</p>
+                    }
+    
+                    <div class="recipe-meta">
+                        @if (recipe.PrepTimeMinutes.HasValue || recipe.CookTimeMinutes.HasValue)
+                        {
+                            <span class="meta-item">
+                                <Icon Name="clock" Size="16" Color="#667eea" />
+                                @GetTotalTime(recipe) min
+                            </span>
+                        }
+                        @if (recipe.Servings.HasValue)
+                        {
+                            <span class="meta-item">
+                                <Icon Name="user" Size="16" Color="#667eea" />
+                                @I18n.Format("Recipes_Servings", recipe.Servings)
+                            </span>
+                        }
+                        <span class="meta-item">
+                            <Icon Name="list" Size="16" Color="#667eea" />
+                            @I18n.Format("Recipes_Ingredients", recipe.IngredientsCount)
+                        </span>
+                    </div>
+                </div>
+            }
+        </div>
+    }
+
+    <!-- Create/Edit Recipe Modal -->
+    @if (showRecipeModal)
+    {
+        <div class="modal-overlay" @onclick="CloseRecipeModal">
+            <div class="modal-content large" @onclick:stopPropagation="true">
+                <div class="modal-header">
+                    <h2>@(editingRecipe != null ? I18n.Get("Recipes_ModalEdit") : I18n.Get("Recipes_ModalNew"))</h2>
+                    <button class="close-btn" @onclick="CloseRecipeModal">
+                        <Icon Name="x" Size="24" Color="#6b7280" />
+                    </button>
+                </div>
+
+                <div class="modal-body">
+                    <div class="form-group">
+                        <label>@I18n.Get("Recipes_FieldName")</label>
+                        <input type="text" class="form-control" @bind="recipeName"
+                               placeholder="@I18n.Get("Recipes_NamePlaceholder")" />
+                    </div>
+
+                    <div class="form-group">
+                        <label>@I18n.Get("Recipes_FieldDesc")</label>
+                        <textarea class="form-control" @bind="recipeDescription" rows="2"
+                                  placeholder="@I18n.Get("Recipes_DescPlaceholder")"></textarea>
+                    </div>
+
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>@I18n.Get("Recipes_FieldCategory")</label>
+                            <select class="form-control" @bind="recipeCategory">
+                                <option value="">@I18n.Get("Recipes_CatNone")</option>
+                                <option value="Hauptgericht">@I18n.Get("Recipes_Cat_MainCourse")</option>
+                                <option value="Vorspeise">@I18n.Get("Recipes_Cat_Starter")</option>
+                                <option value="Suppe">@I18n.Get("Recipes_Cat_Soup")</option>
+                                <option value="Salat">@I18n.Get("Recipes_Cat_Salad")</option>
+                                <option value="Dessert">@I18n.Get("Recipes_Cat_Dessert")</option>
+                                <option value="Snack">@I18n.Get("Recipes_Cat_Snack")</option>
+                                <option value="Frühstück">@I18n.Get("Recipes_Cat_Breakfast")</option>
+                                <option value="Backen">@I18n.Get("Recipes_Cat_Baking")</option>
+                            </select>
+                        </div>
+
+                        <div class="form-group">
+                            <label>@I18n.Get("Recipes_FieldServings")</label>
+                            <input type="number" class="form-control" @bind="recipeServings"
+                                   min="1" placeholder="@I18n.Get("Recipes_ServingsPlaceholder")" />
+                        </div>
+                    </div>
+
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>@I18n.Get("Recipes_FieldPrepTime")</label>
+                            <input type="number" class="form-control" @bind="recipePrepTime"
+                                   min="0" placeholder="@I18n.Get("Recipes_PrepTimePlaceholder")" />
+                        </div>
+
+                        <div class="form-group">
+                            <label>@I18n.Get("Recipes_FieldCookTime")</label>
+                            <input type="number" class="form-control" @bind="recipeCookTime"
+                                   min="0" placeholder="@I18n.Get("Recipes_CookTimePlaceholder")" />
+                        </div>
+                    </div>
+
+                    <!-- Ingredients Section -->
+                    <div class="ingredients-section">
+                        <div class="section-header">
+                            <h3>@I18n.Get("Recipes_FieldIngredients")</h3>
+                            <button class="btn-secondary-small" @onclick="AddIngredient">
+                                <Icon Name="list" Size="16" Color="currentColor" />
+                                @I18n.Get("Recipes_AddIngredient")
+                            </button>
+                        </div>
+
+                        @if (ingredients.Count == 0)
+                        {
+                            <p class="text-muted">@I18n.Get("Recipes_NoIngredients")</p>
+                        }
+                        else
+                        {
+                            <div class="ingredients-list">
+                                @for (int i = 0; i < ingredients.Count; i++)
+                                {
+                                    var index = i;
+                                    var ingredient = ingredients[i];
+                                    <div class="ingredient-item">
+                                        <span class="ingredient-number">@(index + 1).</span>
+                                        <input type="text" class="form-control-small"
+                                               @bind="ingredient.Name"
+                                               placeholder="@I18n.Get("Recipes_IngNamePlaceholder")" />
+                                        <input type="number" class="form-control-small"
+                                               @bind="ingredient.Amount"
+                                               placeholder="@I18n.Get("Recipes_IngAmountPlaceholder")"
+                                               step="0.01" />
+                                        <select class="form-control-small" @bind="ingredient.Unit">
+                                            <option value="">@I18n.Get("Recipes_UnitPlaceholder")</option>
+                                            <option value="g">g</option>
+                                            <option value="kg">kg</option>
+                                            <option value="ml">ml</option>
+                                            <option value="l">l</option>
+                                            <option value="TL">TL</option>
+                                            <option value="EL">EL</option>
+                                            <option value="Stück">@I18n.Get("Recipes_UnitPiece")</option>
+                                            <option value="Prise">@I18n.Get("Recipes_UnitPinch")</option>
+                                            <option value="Becher">@I18n.Get("Recipes_UnitGlass")</option>
+                                            <option value="Tasse">@I18n.Get("Recipes_UnitCup")</option>
+                                            <option value="Bund">@I18n.Get("Recipes_UnitBunch")</option>
+                                            <option value="Packung">@I18n.Get("Recipes_UnitPack")</option>
+                                            <option value="Dose">@I18n.Get("Recipes_UnitCan")</option>
+                                        </select>
+                                        <button class="btn-icon-small delete" @onclick="() => RemoveIngredient(index)">
+                                            <Icon Name="trash" Size="16" Color="#ef4444" />
+                                        </button>
+                                    </div>
+                                }
+                            </div>
+                        }
+                    </div>
+
+                    <div class="form-group">
+                        <label>@I18n.Get("Recipes_FieldInstructions")</label>
+                        <textarea class="form-control" @bind="recipeInstructions" rows="8"
+                                  placeholder="@I18n.Get("Recipes_InstructionsBigPlaceholder")"></textarea>
+                    </div>
+                </div>
+
+                <div class="modal-footer">
+                    <button class="btn-secondary" @onclick="CloseRecipeModal">@I18n.Get("Recipes_BtnCancel")</button>
+                    <button class="btn-primary" @onclick="SaveRecipe">
+                        @(editingRecipe != null ? I18n.Get("Recipes_BtnSave") : I18n.Get("Recipes_BtnCreate"))
+                    </button>
+                </div>
+            </div>
+        </div>
+    }
+
+    <!-- Recipe Detail Modal -->
+    @if (selectedRecipe != null)
+    {
+        <div class="modal-overlay" @onclick="CloseRecipeDetail">
+            <div class="modal-content large" @onclick:stopPropagation="true">
+                <div class="modal-header">
+                    <h2>@selectedRecipe.Name</h2>
+                    <div class="header-actions">
+                        <button class="icon-btn" @onclick="() => ShowEditRecipeModal(selectedRecipe)">
+                            <Icon Name="settings" Size="20" Color="#6b7280" />
+                        </button>
+                        <button class="icon-btn delete" @onclick="() => DeleteRecipe(selectedRecipe.Id)">
+                            <Icon Name="trash" Size="20" Color="#ef4444" />
+                        </button>
+                        <button class="close-btn" @onclick="CloseRecipeDetail">
+                            <Icon Name="x" Size="24" Color="#6b7280" />
+                        </button>
+                    </div>
+                </div>
+
+                <div class="modal-body recipe-detail">
+                    @if (!string.IsNullOrEmpty(selectedRecipe.Category))
+                    {
+                        <span class="recipe-category-large">@TranslateCategory(selectedRecipe.Category)</span>
+                    }
+
+                    @if (!string.IsNullOrEmpty(selectedRecipe.Description))
+                    {
+                        <p class="recipe-description-large">@selectedRecipe.Description</p>
+                    }
+
+                    <div class="recipe-meta-large">
+                        @if (selectedRecipe.PrepTimeMinutes.HasValue)
+                        {
+                            <div class="meta-item-large">
+                                <Icon Name="clock" Size="24" Color="#667eea" />
+                                <div>
+                                    <strong>@I18n.Get("Recipes_DetailPrepTime")</strong>
+                                    <p>@selectedRecipe.PrepTimeMinutes Min.</p>
+                                </div>
+                            </div>
+                        }
+                        @if (selectedRecipe.CookTimeMinutes.HasValue)
+                        {
+                            <div class="meta-item-large">
+                                <Icon Name="clock" Size="24" Color="#667eea" />
+                                <div>
+                                    <strong>@I18n.Get("Recipes_DetailCookTime")</strong>
+                                    <p>@selectedRecipe.CookTimeMinutes Min.</p>
+                                </div>
+                            </div>
+                        }
+                        @if (selectedRecipe.Servings.HasValue)
+                        {
+                            <div class="meta-item-large">
+                                <Icon Name="user" Size="24" Color="#667eea" />
+                                <div>
+                                    <strong>@I18n.Get("Recipes_DetailServings")</strong>
+                                    <p>@selectedRecipe.Servings</p>
+                                </div>
+                            </div>
+                        }
+                    </div>
+
+                    @if (selectedRecipe.Ingredients.Count > 0)
+                    {
+                        <div class="ingredients-detail">
+                            <h3>@I18n.Get("Recipes_DetailIngredients")</h3>
+                            <ul class="ingredients-list-detail">
+                                @foreach (var ingredient in selectedRecipe.Ingredients.OrderBy(i => i.SortOrder))
+                                {
+                                    <li>
+                                        @if (ingredient.Amount.HasValue)
+                                        {
+                                            <strong>@ingredient.Amount</strong>
+                                        }
+                                        @if (!string.IsNullOrEmpty(ingredient.Unit))
+                                        {
+                                            <span>@ingredient.Unit</span>
+                                        }
+                                        <span>@ingredient.Name</span>
+                                    </li>
+                                }
+                            </ul>
+                        </div>
+                    }
+
+                    @if (!string.IsNullOrEmpty(selectedRecipe.Instructions))
+                    {
+                        <div class="instructions-detail">
+                            <h3>@I18n.Get("Recipes_DetailInstructions")</h3>
+                            <div class="instructions-text">@((MarkupString)selectedRecipe.Instructions.Replace("\n", "<br/>"))</div>
+                        </div>
+                    }
+
+                    @if (!string.IsNullOrEmpty(selectedRecipe.CreatedByName))
+                    {
+                        <div class="recipe-footer">
+                            <Icon Name="user" Size="16" Color="#9ca3af" />
+                            <span>@I18n.Get("Recipes_DetailCreatedBy") @selectedRecipe.CreatedByName</span>
+                        </div>
+                    }
+                </div>
+            </div>
+        </div>
+    }
+
+    <!-- ? NEU: Import Modal -->
+    @if (showImportModal)
+    {
+        <div class="modal-overlay" @onclick="CloseImportModal">
+            <div class="modal-content" @onclick:stopPropagation="true">
+                <div class="modal-header">
+                    <h2>@I18n.Get("Recipes_ImportTitle")</h2>
+                    <button class="close-btn" @onclick="CloseImportModal">
+                        <Icon Name="x" Size="24" Color="#6b7280" />
+                    </button>
+                </div>
+
+                <div class="modal-body">
+                    <div class="import-info">
+                        <Icon Name="info" Size="20" Color="#667eea" />
+                        <div>
+                            <strong>@I18n.Get("Recipes_ImportSupportedSites")</strong>
+                            <p>@I18n.Get("Recipes_ImportSupportedList")</p>
+                        </div>
+                    </div>
+
+                    <div class="form-group">
+                        <label>@I18n.Get("Recipes_ImportFieldUrl")</label>
+                        <input type="url" class="form-control" @bind="importUrl"
+                               placeholder="https://www.chefkoch.de/rezepte/..."
+                               disabled="@isImporting" />
+                    </div>
+
+                    @if (!string.IsNullOrEmpty(importError))
+                    {
+                        <div class="alert alert-error">
+                            <Icon Name="x" Size="20" Color="#ef4444" />
+                            <span>@importError</span>
+                        </div>
+                    }
+
+                    @if (!string.IsNullOrEmpty(importSuccess))
+                    {
+                        <div class="alert alert-success">
+                            <Icon Name="check" Size="20" Color="#10b981" />
+                            <span>@importSuccess</span>
+                        </div>
+                    }
+
+                    @if (importedRecipe != null)
+                    {
+                        <div class="import-preview">
+                            <h4>@I18n.Get("Recipes_ImportPreview")</h4>
+                            <div class="preview-content">
+                                <strong>@importedRecipe.Name</strong>
+                                @if (!string.IsNullOrEmpty(importedRecipe.Description))
+                                {
+                                    <p>@importedRecipe.Description</p>
+                                }
+                                <div class="preview-meta">
+                                    @if (importedRecipe.Servings.HasValue)
+                                    {
+                                        <span>@importedRecipe.Servings @I18n.Get("Recipes_DetailServings2")</span>
+                                    }
+                                    @if (importedRecipe.PrepTimeMinutes.HasValue || importedRecipe.CookTimeMinutes.HasValue)
+                                    {
+                                        <span>@((importedRecipe.PrepTimeMinutes ?? 0) + (importedRecipe.CookTimeMinutes ?? 0)) Min.</span>
+                                    }
+                                    @if (importedRecipe.Ingredients.Count > 0)
+                                    {
+                                        <span>@importedRecipe.Ingredients.Count @I18n.Get("Recipes_DetailIngredients2")</span>
+                                    }
+                                </div>
+                            </div>
+                        </div>
+                    }
+                </div>
+
+                <div class="modal-footer">
+                    <button class="btn-secondary" @onclick="CloseImportModal" disabled="@isImporting">
+                        @I18n.Get("Recipes_ImportBtnCancel")
+                    </button>
+                    @if (importedRecipe != null)
+                    {
+                        <button class="btn-primary" @onclick="EditImportedRecipe">
+                            <Icon Name="settings" Size="20" Color="white" />
+                            @I18n.Get("Recipes_ImportBtnEditSave")
+                        </button>
+                    }
+                    else
+                    {
+                        <button class="btn-primary" @onclick="ImportRecipe" disabled="@(isImporting || string.IsNullOrWhiteSpace(importUrl))">
+                            @if (isImporting)
+                            {
+                                <span class="spinner-small"></span>
+                                <span>@I18n.Get("Recipes_ImportBtnImporting")</span>
+                            }
+                            else
+                            {
+                                <Icon Name="download" Size="20" Color="white" />
+                                <span>@I18n.Get("Recipes_ImportBtnImport")</span>
+                            }
+                        </button>
+                    }
+                </div>
+            </div>
+        </div>
+    }
+</div>
+
+@code {
+    private string TranslateCategory(string category) => category switch
+    {
+        "Hauptgericht" => I18n.Get("Recipes_Cat_MainCourse"),
+        "Vorspeise"    => I18n.Get("Recipes_Cat_Starter"),
+        "Suppe"        => I18n.Get("Recipes_Cat_Soup"),
+        "Salat"        => I18n.Get("Recipes_Cat_Salad"),
+        "Dessert"      => I18n.Get("Recipes_Cat_Dessert"),
+        "Snack"        => I18n.Get("Recipes_Cat_Snack"),
+        "Frühstück"    => I18n.Get("Recipes_Cat_Breakfast"),
+        "Backen"       => I18n.Get("Recipes_Cat_Baking"),
+        _              => category
+    };
+
+    private List<RecipeListDto> recipes = new();
+    private List<RecipeListDto> filteredRecipes = new();
+    private List<string> categories = new();
+    private RecipeDto? selectedRecipe;
+    private bool isLoading = true;
+    private string selectedCategory = "";
+
+    // Recipe Modal
+    private bool showRecipeModal = false;
+    private RecipeDto? editingRecipe;
+    private string recipeName = "";
+    private string recipeDescription = "";
+    private string recipeCategory = "";
+    private int? recipeServings;
+    private int? recipePrepTime;
+    private int? recipeCookTime;
+    private string recipeInstructions = "";
+    private List<IngredientInput> ingredients = new();
+
+    // Import modal
+    private bool showImportModal = false;
+    private bool isImporting = false;
+    private string importUrl = "";
+    private string importError = "";
+    private string importSuccess = "";
+    private CreateRecipeRequest? importedRecipe;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var isAuthenticated = await AuthService.IsAuthenticatedAsync();
+        if (!isAuthenticated)
+        {
+            Navigation.NavigateTo("/login");
+            return;
+        }
+
+        await LoadRecipes();
+        await LoadCategories();
+    }
+
+    private async Task LoadRecipes()
+    {
+        isLoading = true;
+        try
+        {
+            recipes = await RecipeService.GetAllRecipesAsync();
+            FilterRecipes();
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error loading recipes: {ex.Message}");
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private async Task LoadCategories()
+    {
+        try
+        {
+            categories = await RecipeService.GetCategoriesAsync();
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error loading categories: {ex.Message}");
+        }
+    }
+
+    private void FilterByCategory(string category)
+    {
+        selectedCategory = category;
+        FilterRecipes();
+    }
+
+    private void FilterRecipes()
+    {
+        if (string.IsNullOrEmpty(selectedCategory))
+        {
+            filteredRecipes = recipes;
+        }
+        else
+        {
+            filteredRecipes = recipes.Where(r => r.Category == selectedCategory).ToList();
+        }
+    }
+
+    private async Task ShowRecipeDetail(int recipeId)
+    {
+        try
+        {
+            selectedRecipe = await RecipeService.GetRecipeByIdAsync(recipeId);
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error loading recipe: {ex.Message}");
+        }
+    }
+
+    private void CloseRecipeDetail()
+    {
+        selectedRecipe = null;
+    }
+
+    private void ShowCreateRecipeModal()
+    {
+        ResetRecipeForm();
+        showRecipeModal = true;
+    }
+
+    private void ShowEditRecipeModal(RecipeDto recipe)
+    {
+        CloseRecipeDetail();
+        editingRecipe = recipe;
+        recipeName = recipe.Name;
+        recipeDescription = recipe.Description ?? "";
+        recipeCategory = recipe.Category ?? "";
+        recipeServings = recipe.Servings;
+        recipePrepTime = recipe.PrepTimeMinutes;
+        recipeCookTime = recipe.CookTimeMinutes;
+        recipeInstructions = recipe.Instructions ?? "";
+        ingredients = recipe.Ingredients.Select(i => new IngredientInput
+        {
+            Name = i.Name,
+            Amount = i.Amount,
+            Unit = i.Unit ?? "",
+            SortOrder = i.SortOrder
+        }).ToList();
+        showRecipeModal = true;
+    }
+
+    private void CloseRecipeModal()
+    {
+        showRecipeModal = false;
+        editingRecipe = null;
+    }
+
+    private void ResetRecipeForm()
+    {
+        editingRecipe = null;
+        recipeName = "";
+        recipeDescription = "";
+        recipeCategory = "";
+        recipeServings = null;
+        recipePrepTime = null;
+        recipeCookTime = null;
+        recipeInstructions = "";
+        ingredients = new();
+    }
+
+    private void AddIngredient()
+    {
+        ingredients.Add(new IngredientInput { SortOrder = ingredients.Count });
+    }
+
+    private void RemoveIngredient(int index)
+    {
+        ingredients.RemoveAt(index);
+        // Update sort order
+        for (int i = 0; i < ingredients.Count; i++)
+        {
+            ingredients[i].SortOrder = i;
+        }
+    }
+
+    private async Task SaveRecipe()
+    {
+        if (string.IsNullOrWhiteSpace(recipeName)) return;
+
+        try
+        {
+            if (editingRecipe != null)
+            {
+                var request = new UpdateRecipeRequest
+                {
+                    Id = editingRecipe.Id,
+                    Name = recipeName,
+                    Description = recipeDescription,
+                    Category = recipeCategory,
+                    Servings = recipeServings,
+                    PrepTimeMinutes = recipePrepTime,
+                    CookTimeMinutes = recipeCookTime,
+                    Instructions = recipeInstructions,
+                    Ingredients = ingredients.Select(i => new CreateRecipeIngredientRequest
+                    {
+                        Name = i.Name,
+                        Amount = i.Amount,
+                        Unit = i.Unit,
+                        SortOrder = i.SortOrder
+                    }).ToList()
+                };
+                await RecipeService.UpdateRecipeAsync(request);
+            }
+            else
+            {
+                var request = new CreateRecipeRequest
+                {
+                    Name = recipeName,
+                    Description = recipeDescription,
+                    Category = recipeCategory,
+                    Servings = recipeServings,
+                    PrepTimeMinutes = recipePrepTime,
+                    CookTimeMinutes = recipeCookTime,
+                    Instructions = recipeInstructions,
+                    Ingredients = ingredients.Select(i => new CreateRecipeIngredientRequest
+                    {
+                        Name = i.Name,
+                        Amount = i.Amount,
+                        Unit = i.Unit,
+                        SortOrder = i.SortOrder
+                    }).ToList()
+                };
+                await RecipeService.CreateRecipeAsync(request);
+            }
+
+            await LoadRecipes();
+            await LoadCategories();
+            CloseRecipeModal();
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error saving recipe: {ex.Message}");
+        }
+    }
+
+    private async Task DeleteRecipe(int id)
+    {
+        if (!await JS.InvokeAsync<bool>("confirm", I18n.Get("Recipes_ConfirmDelete"))) return;
+
+        try
+        {
+            await RecipeService.DeleteRecipeAsync(id);
+            await LoadRecipes();
+            await LoadCategories();
+            CloseRecipeDetail();
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error deleting recipe: {ex.Message}");
+        }
+    }
+
+    // Import functions
+    private void ShowImportModal()
+    {
+        importUrl = "";
+        importError = "";
+        importSuccess = "";
+        importedRecipe = null;
+        showImportModal = true;
+    }
+
+    private void CloseImportModal()
+    {
+        showImportModal = false;
+        importUrl = "";
+        importError = "";
+        importSuccess = "";
+        importedRecipe = null;
+    }
+
+    private async Task ImportRecipe()
+    {
+        if (string.IsNullOrWhiteSpace(importUrl))
+        {
+            importError = I18n.Get("Recipes_ErrorUrl");
+            return;
+        }
+
+        isImporting = true;
+        importError = "";
+        importSuccess = "";
+        importedRecipe = null;
+
+        try
+        {
+            var result = await RecipeService.ImportFromUrlAsync(importUrl);
+
+            if (result?.Success == true && result.Recipe != null)
+            {
+                importedRecipe = result.Recipe;
+                importSuccess = result.Message ?? I18n.Get("Recipes_ImportSuccess");
+            }
+            else
+            {
+                importError = result?.Message ?? I18n.Get("Recipes_ImportFailed");
+            }
+        }
+        catch (Exception ex)
+        {
+            importError = I18n.Format("Recipes_ImportError", ex.Message);
+        }
+        finally
+        {
+            isImporting = false;
+        }
+    }
+
+    private void EditImportedRecipe()
+    {
+        if (importedRecipe == null) return;
+
+        // Fill form with imported data
+        ResetRecipeForm();
+        recipeName = importedRecipe.Name;
+        recipeDescription = importedRecipe.Description ?? "";
+        recipeCategory = importedRecipe.Category ?? "";
+        recipeServings = importedRecipe.Servings;
+        recipePrepTime = importedRecipe.PrepTimeMinutes;
+        recipeCookTime = importedRecipe.CookTimeMinutes;
+        recipeInstructions = importedRecipe.Instructions ?? "";
+        ingredients = importedRecipe.Ingredients.Select(i => new IngredientInput
+        {
+            Name = i.Name,
+            Amount = i.Amount,
+            Unit = i.Unit ?? "",
+            SortOrder = i.SortOrder
+        }).ToList();
+
+        CloseImportModal();
+        showRecipeModal = true;
+    }
+
+    private int GetTotalTime(RecipeListDto recipe)
+    {
+        return (recipe.PrepTimeMinutes ?? 0) + (recipe.CookTimeMinutes ?? 0);
+    }
+
+    private void GoBack()
+    {
+        Navigation.NavigateTo("/home");
+    }
+
+    private class IngredientInput
+    {
+        public string Name { get; set; } = "";
+        public decimal? Amount { get; set; }
+        public string Unit { get; set; } = "";
+        public int SortOrder { get; set; }
+    }
+}

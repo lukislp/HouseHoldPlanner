@@ -1,0 +1,188 @@
+﻿@page "/register"
+@layout EmptyLayout
+@using HaushaltsPlaner.Shared.DTOs
+@using HaushaltsPlaner.Client.Services
+@inject AuthenticationService AuthService
+@inject NavigationManager Navigation
+@inject HttpClient Http
+@inherits LocalizedComponentBase
+
+<PageTitle>@I18n.Get("PageTitle_Register")</PageTitle>
+
+<div class="login-container">
+    <div class="login-card">
+        <div class="login-header">
+            <div class="logo">
+                <Icon Name="home" Size="64" Color="#667eea" />
+            </div>
+            <h2>@I18n.Get("Register_Title")</h2>
+            <p>@I18n.Get("Register_Subtitle")</p>
+        </div>
+
+        @if (!string.IsNullOrEmpty(errorMessage))
+        {
+            <div class="alert alert-danger">
+                <Icon Name="bell" Size="20" Color="#991b1b" CssClass="alert-icon" />
+                <span>@errorMessage</span>
+            </div>
+        }
+
+        <EditForm Model="@registerRequest" OnValidSubmit="HandleRegister">
+            <DataAnnotationsValidator />
+      
+            <div class="form-group">
+                <label for="fullname">
+                    <Icon Name="user" Size="20" Color="#667eea" />
+                    @I18n.Get("Register_FullName")
+                </label>
+                <div class="input-wrapper">
+                    <Icon Name="user" Size="20" Color="#9ca3af" CssClass="input-icon" />
+                    <InputText id="fullname" class="form-control" @bind-Value="registerRequest.FullName" placeholder="@I18n.Get("Register_FullNamePlaceholder")" />
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label for="username">
+                    <Icon Name="user" Size="20" Color="#667eea" />
+                    @I18n.Get("Register_Username")
+                </label>
+                <div class="input-wrapper">
+                    <Icon Name="user" Size="20" Color="#9ca3af" CssClass="input-icon" />
+                    <InputText id="username" class="form-control" @bind-Value="registerRequest.Username" placeholder="@I18n.Get("Register_UsernamePlaceholder")" />
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label for="email">
+                    <Icon Name="mail" Size="20" Color="#667eea" />
+                    @I18n.Get("Register_Email")
+                </label>
+                <div class="input-wrapper">
+                    <Icon Name="mail" Size="20" Color="#9ca3af" CssClass="input-icon" />
+                    <InputText id="email" type="email" class="form-control" @bind-Value="registerRequest.Email" placeholder="@I18n.Get("Register_EmailPlaceholder")" />
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label for="password">
+                    <Icon Name="lock" Size="20" Color="#667eea" />
+                    @I18n.Get("Register_Password")
+                </label>
+                <div class="input-wrapper">
+                    <Icon Name="lock" Size="20" Color="#9ca3af" CssClass="input-icon" />
+                    <InputText id="password" type="password" class="form-control" @bind-Value="registerRequest.Password" placeholder="@I18n.Get("Register_PasswordPlaceholder")" />
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label for="householdName">
+                    <Icon Name="building" Size="20" Color="#667eea" />
+                    @I18n.Get("Register_Household")
+                </label>
+                <div class="input-wrapper">
+                    <Icon Name="building" Size="20" Color="#9ca3af" CssClass="input-icon" />
+                    <InputSelect id="householdName" class="form-control form-select" @bind-Value="registerRequest.HouseholdName">
+                        <option value="">@I18n.Get("Register_HouseholdPlaceholder")</option>
+                        @foreach (var household in availableHouseholds)
+                        {
+                            <option value="@household.Name">@household.DisplayName</option>
+                        }
+                    </InputSelect>
+                </div>
+            </div>
+
+            <button type="submit" class="btn btn-primary btn-block" disabled="@isLoading">
+                @if (isLoading)
+                {
+                    <span class="spinner-border spinner-border-sm"></span>
+                }
+                else
+                {
+                    <Icon Name="check" Size="20" Color="white" />
+                }
+                <span>@I18n.Get("Register_Submit")</span>
+            </button>
+        </EditForm>
+
+        <div class="login-footer">
+            <p>@I18n.Get("Register_HasAccount") <a href="/login" class="link-primary">@I18n.Get("Register_Login")</a></p>
+        </div>
+    </div>
+    
+    <div class="background-decoration">
+        <div class="circle circle-1"></div>
+        <div class="circle circle-2"></div>
+        <div class="circle circle-3"></div>
+    </div>
+</div>
+
+@code {
+    private RegisterRequest registerRequest = new();
+    private List<HouseholdOption> availableHouseholds = new();
+    private string errorMessage = string.Empty;
+    private bool isLoading = false;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadAvailableHouseholds();
+    }
+
+    private async Task LoadAvailableHouseholds()
+    {
+        try
+        {
+            var response = await Http.GetFromJsonAsync<List<HouseholdOption>>("api/households/available");
+            if (response != null)
+            {
+                availableHouseholds = response;
+            }
+        }
+        catch (Exception ex)
+        {
+            errorMessage = I18n.Format("Register_ErrorLoadHouseholds", ex.Message);
+        }
+    }
+
+    private async Task HandleRegister()
+    {
+        isLoading = true;
+        errorMessage = string.Empty;
+        
+        // Validierung
+        if (string.IsNullOrWhiteSpace(registerRequest.FullName))
+        {
+            errorMessage = I18n.Get("Register_ErrorName");
+            isLoading = false;
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(registerRequest.HouseholdName))
+        {
+            errorMessage = I18n.Get("Register_ErrorHousehold");
+            isLoading = false;
+            return;
+        }
+        
+        try
+        {
+            var result = await AuthService.RegisterAsync(registerRequest);
+      
+            if (result.Success)
+            {
+                Navigation.NavigateTo("/home");
+            }
+            else
+            {
+                errorMessage = result.Message ?? I18n.Get("Register_ErrorFailed");
+            }
+        }
+        catch (Exception ex)
+        {
+            errorMessage = I18n.Format("Register_ErrorGeneric", ex.Message);
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+}

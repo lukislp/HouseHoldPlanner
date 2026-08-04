@@ -1,0 +1,460 @@
+﻿@page "/home"
+@using HaushaltsPlaner.Shared.DTOs
+@using HaushaltsPlaner.Client.Services
+@using Microsoft.AspNetCore.Components.Forms
+@inject AuthenticationService AuthService
+@inject HomeService HomeService
+@inject ProfileService ProfileService
+@inject RecipeService RecipeService
+@inject ChatService ChatService
+@inject NavigationManager Navigation
+@inject IConfiguration Configuration
+@inject IJSRuntime JS
+@implements IAsyncDisposable
+@inherits LocalizedComponentBase
+
+<PageTitle>@I18n.Get("PageTitle_Home")</PageTitle>
+
+<div class="home-container">
+    <!-- Header -->
+    <div class="home-header">
+        <div class="header-left" @onclick='() => NavigateToFeature("profile")' style="cursor: pointer;">
+            @if (!string.IsNullOrEmpty(currentUser?.ProfileImageUrl))
+            {
+                <img src="@GetProfileImageUrl(currentUser.ProfileImageUrl)" alt="Profile" class="profile-pic" />
+            }
+            else
+            {
+                <img src="https://ui-avatars.com/api/?name=@(currentUser?.Username ?? "User")&background=667eea&color=fff&size=50&rounded=true" alt="Profile" class="profile-pic" />
+            }
+            <div class="user-info">
+                <span class="user-name">@currentUser?.FullName</span>
+            </div>
+        </div>
+        
+        <div class="header-center">
+            <h1 class="household-title">@(currentUser?.HouseholdName ?? "Haushalt")</h1>
+        </div>
+
+        <div class="header-right">
+            <button class="logout-btn" @onclick="HandleLogout" title="@I18n.Get("Profile_BtnLogout")">
+                <Icon Name="arrow-left" Size="20" Color="#667eea" Style="transform: rotate(180deg);" />
+            </button>
+        </div>
+    </div>
+
+    <!-- News Card / Family Photo Card -->
+    <div class="news-card" style="@GetBackgroundStyle()">
+        <div class="news-overlay">
+            <div class="news-header">
+                <span class="news-date">@DateTime.Now.ToString("ddd d MMMM", CurrentCulture)</span>
+                <span class="news-time">@currentTime</span>
+                <span class="news-weather">
+                    @currentTemperature°C <Icon Name="sun" Size="16" Color="white" />
+                </span>
+            </div>
+      
+            <!-- Photo Upload Controls - Mittig Unten -->
+            <div class="photo-controls">
+                <InputFile OnChange="HandleBackgroundUpload" accept="image/*" id="backgroundUpload" style="display: none;" />
+                <button class="photo-btn" @onclick="TriggerFileUpload" title="@I18n.Get("Home_BtnUploadPhoto")">
+                    <Icon Name="camera" Size="24" Color="white" />
+                </button>
+                @if (!string.IsNullOrEmpty(stats?.HouseholdBackgroundImageUrl))
+                {
+                    <button class="photo-btn-small reset" @onclick="HandleBackgroundReset" title="@I18n.Get("Home_BtnResetPhoto")">
+                        <Icon Name="x" Size="16" Color="white" />
+                    </button>
+                }
+            </div>
+        </div>
+    </div>
+
+    @if (isLoading)
+    {
+        <div class="loading-state">
+            <div class="spinner"></div>
+            <p>@I18n.Get("Common_Loading")</p>
+        </div>
+    }
+    else if (stats != null)
+    {
+        <!-- Dashboard Grid -->
+        <div class="dashboard-grid">
+            <!-- Calendar Card (war Lists) -->
+            <div class="dashboard-card" @onclick='() => NavigateToFeature("calendar")'>
+                <div class="card-content">
+                    <h3>@I18n.Get("Home_Card_Calendar")</h3>
+                    <p class="card-subtitle">@stats.UpcomingEventsCount @(stats.UpcomingEventsCount == 1 ? I18n.Get("Home_Card_Event") : I18n.Get("Home_Card_Events"))<br /></p>
+                </div>
+                <div class="card-icon" style="background: linear-gradient(135deg, #ffeaa7 0%, #fdcb6e 100%);">
+                    <Icon Name="calendar" Size="26" Color="white" />
+                </div>
+            </div>
+
+            <!-- Lists Card (war Calendar) -->
+            <div class="dashboard-card" @onclick='() => NavigateToFeature("lists")'>
+                <div class="card-content">
+                    <h3>@I18n.Get("Home_Card_Todos")</h3>
+                    <p class="card-subtitle">@stats.TodayEventsCount @(stats.TodayEventsCount == 1 ? I18n.Get("Home_Card_Appointment") : I18n.Get("Home_Card_Appointments"))<br />@I18n.Get("Home_Card_Today")</p>
+                </div>
+                <div class="card-icon" style="background: linear-gradient(135deg, #a29bfe 0%, #6c5ce7 100%);">
+                    <Icon Name="list" Size="26" Color="white" />
+                </div>
+            </div>
+
+            <!-- Meal Planner Card -->
+            <div class="dashboard-card" @onclick='() => NavigateToFeature("meals")'>
+                <div class="card-content">
+                    <h3>@I18n.Get("Home_Card_Meals")</h3>
+                    @if (stats.PlannedMealsCount > 0)
+                    {
+                        <p class="card-subtitle">@stats.PlannedMealsCount @(stats.PlannedMealsCount == 1 ? I18n.Get("Home_Card_Meal") : I18n.Get("Home_Card_Meals2"))</p>
+                    }
+                    else
+                    {
+                        <p class="card-subtitle">@I18n.Get("Home_Card_MealsEmpty")</p>
+                    }
+                </div>
+                <div class="card-icon" style="background: linear-gradient(135deg, #74b9ff 0%, #0984e3 100%);">
+                    <Icon Name="utensils" Size="26" Color="white" />
+                </div>
+            </div>
+
+            <!-- My Family Card -->
+            <div class="dashboard-card" @onclick='() => NavigateToFeature("family")'>
+                <div class="card-content">
+                    <h3>@I18n.Get("Home_Card_Family")</h3>
+                    <p class="card-subtitle">@stats.FamilyMembersCount @(stats.FamilyMembersCount == 1 ? I18n.Get("Home_Card_Member") : I18n.Get("Home_Card_Members"))</p>
+                </div>
+                <div class="card-icon" style="background: linear-gradient(135deg, #a29bfe 0%, #6c5ce7 100%);">
+                    <Icon Name="family" Size="26" Color="white" />
+                </div>
+            </div>
+
+            <!-- Recipes Card ✅ NEU -->
+            <div class="dashboard-card" @onclick='() => NavigateToFeature("recipes")'>
+                <div class="card-content">
+                    <h3>@I18n.Get("Home_Card_Recipes")</h3>
+                    <p class="card-subtitle">@recipesCount @(recipesCount == 1 ? I18n.Get("Home_Card_Recipe") : I18n.Get("Home_Card_Recipes2"))</p>
+                </div>
+                <div class="card-icon" style="background: linear-gradient(135deg, #fa709a 0%, #fee140 100%);">
+                    <Icon Name="utensils" Size="26" Color="white" />
+                </div>
+            </div>
+
+            <!-- Chat Card ✅ NEU -->
+            <div class="dashboard-card chat-card" @onclick='() => NavigateToFeature("chat")'>
+                <div class="card-content">
+                    <h3>@I18n.Get("Home_Card_Chat")</h3>
+                    @if (unreadMessagesCount > 0)
+                    {
+                        <p class="card-subtitle">@unreadMessagesCount @(unreadMessagesCount == 1 ? I18n.Get("Home_Card_Message") : I18n.Get("Home_Card_Messages"))</p>
+                    }
+                    else
+                    {
+                        <p class="card-subtitle">@I18n.Get("Home_Card_ChatEmpty")</p>
+                    }
+                </div>
+                <div class="card-icon" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);">
+                    <Icon Name="message" Size="26" Color="white" />
+                    @if (unreadMessagesCount > 0)
+                    {
+                        <span class="chat-badge">@unreadMessagesCount</span>
+                    }
+                </div>
+                @if (ChatService.IsConnected)
+                {
+                    <div class="online-indicator"></div>
+                }
+            </div>
+        </div>
+    }
+</div>
+
+@code {
+    private UserProfileDto? currentUser;
+    private DashboardStatsDto? stats;
+    private bool isLoading = true;
+    private int currentTemperature = 6;
+    private string currentTime = DateTime.Now.ToString("HH:mm:ss");
+    private int recipesCount = 0;
+    private int unreadMessagesCount = 0;
+    private System.Threading.Timer? refreshTimer;
+    private System.Threading.Timer? clockTimer;
+    private const int RefreshIntervalSeconds = 60;
+    private bool isUploadingBackground = false;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var isAuthenticated = await AuthService.IsAuthenticatedAsync();
+        if (!isAuthenticated)
+        {
+            Navigation.NavigateTo("/login");
+            return;
+        }
+
+        await LoadUserProfile();
+        await LoadStats();
+        await LoadRecipesCount();
+        await LoadUnreadMessagesCount();
+        await StartChatConnection();
+  
+        // Start auto-refresh timer
+        StartAutoRefresh();
+ 
+        // Start clock timer
+        StartClock();
+    }
+
+    private async Task StartChatConnection()
+    {
+        try
+        {
+            // Event handler for new messages
+            ChatService.OnMessageReceived += OnNewMessage;
+            ChatService.OnMessageRead += OnMessageRead;
+    
+            await ChatService.StartConnectionAsync();
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error starting chat connection: {ex.Message}");
+        }
+    }
+
+    private void OnNewMessage(ChatMessageDto message)
+    {
+        InvokeAsync(async () =>
+    {
+        await LoadUnreadMessagesCount();
+        StateHasChanged();
+    });
+    }
+
+    private void OnMessageRead(int messageId, int userId)
+    {
+        InvokeAsync(async () =>
+     {
+         await LoadUnreadMessagesCount();
+         StateHasChanged();
+     });
+    }
+
+    private void StartAutoRefresh()
+    {
+        refreshTimer = new System.Threading.Timer(async _ =>
+          {
+              try
+              {
+                  // Refresh data without showing loading spinner
+                  await InvokeAsync(async () =>
+             {
+        await LoadUserProfile();
+        await LoadStatsQuiet();
+        await LoadUnreadMessagesCount();
+        StateHasChanged();
+    });
+              }
+              catch (Exception ex)
+              {
+                  Console.WriteLine($"Auto-refresh error: {ex.Message}");
+              }
+          }, null, TimeSpan.FromSeconds(RefreshIntervalSeconds), TimeSpan.FromSeconds(RefreshIntervalSeconds));
+    }
+    
+    private void StartClock()
+    {
+        clockTimer = new System.Threading.Timer(_ =>
+      {
+          try
+          {
+              InvokeAsync(() =>
+            {
+                currentTime = DateTime.Now.ToString("HH:mm:ss");
+                StateHasChanged();
+            });
+          }
+          catch (Exception ex)
+          {
+              Console.WriteLine($"Clock error: {ex.Message}");
+          }
+      }, null, TimeSpan.Zero, TimeSpan.FromSeconds(1));
+    }
+
+    private async Task LoadUserProfile()
+    {
+        try
+        {
+            currentUser = await ProfileService.GetProfileAsync();
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error loading user profile: {ex.Message}");
+        }
+    }
+
+    private async Task LoadStats()
+    {
+        isLoading = true;
+        try
+        {
+            stats = await HomeService.GetDashboardStatsAsync();
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error loading stats: {ex.Message}");
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+    
+    // Quiet refresh without loading spinner
+    private async Task LoadStatsQuiet()
+    {
+        try
+        {
+            stats = await HomeService.GetDashboardStatsAsync();
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error loading stats (quiet): {ex.Message}");
+        }
+    }
+
+    private async Task LoadRecipesCount()
+    {
+        try
+        {
+            var recipes = await RecipeService.GetAllRecipesAsync();
+            recipesCount = recipes.Count;
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error loading recipes: {ex.Message}");
+        }
+    }
+
+    private async Task LoadUnreadMessagesCount()
+    {
+        try
+        {
+            unreadMessagesCount = await ChatService.GetUnreadCountAsync();
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error loading unread messages: {ex.Message}");
+        }
+    }
+
+    private string GetProfileImageUrl(string profileImageUrl)
+    {
+        // If it's already a full URL, return as is
+        if (profileImageUrl.StartsWith("http"))
+        {
+            return profileImageUrl;
+        }
+
+        // Otherwise, construct the full URL pointing to the API server
+        var serverUrl = Configuration["ServerUrl"] ?? "http://localhost:5242";
+        return $"{serverUrl.TrimEnd('/')}{profileImageUrl}";
+    }
+
+    private void NavigateToFeature(string feature)
+    {
+        Navigation.NavigateTo($"/{feature}");
+    }
+
+    private async Task HandleLogout()
+    {
+        await AuthService.LogoutAsync();
+        Navigation.NavigateTo("/login");
+    }
+    
+    public async ValueTask DisposeAsync()
+    {
+        refreshTimer?.Dispose();
+        clockTimer?.Dispose();
+  
+        // Entferne Event-Handler
+        ChatService.OnMessageReceived -= OnNewMessage;
+        ChatService.OnMessageRead -= OnMessageRead;
+    }
+
+    private string GetBackgroundStyle()
+    {
+        if (!string.IsNullOrEmpty(stats?.HouseholdBackgroundImageUrl))
+        {
+            var imageUrl = GetProfileImageUrl(stats.HouseholdBackgroundImageUrl);
+            return $"background-image: url('{imageUrl}'); background-size: cover; background-position: center;";
+        }
+        // Default gradient
+        return "";
+    }
+
+    private async Task HandleBackgroundUpload(InputFileChangeEventArgs e)
+    {
+        if (isUploadingBackground) return;
+     
+        var file = e.File;
+        if (file == null) return;
+
+        isUploadingBackground = true;
+        StateHasChanged();
+
+        try
+        {
+            var result = await HomeService.UploadBackgroundImageAsync(file);
+    
+            if (result?.Success == true)
+            {
+                await LoadStatsQuiet(); // Reload stats to get new image URL
+                StateHasChanged();
+            }
+            else
+            {
+                await JS.InvokeVoidAsync("alert", result?.Message ?? I18n.Get("Home_ErrorUpload"));
+            }
+        }
+        catch (Exception ex)
+        {
+            await JS.InvokeVoidAsync("alert", $"{I18n.Get("Home_ErrorUpload")}: {ex.Message}");
+        }
+        finally
+        {
+            isUploadingBackground = false;
+            StateHasChanged();
+        }
+    }
+
+    private async Task HandleBackgroundReset()
+    {
+        if (!await JS.InvokeAsync<bool>("confirm", I18n.Get("Home_ConfirmResetBackground"))) return;
+
+        try
+        {
+            var success = await HomeService.ResetBackgroundImageAsync();
+
+            if (success)
+            {
+                await LoadStatsQuiet();
+                StateHasChanged();
+            }
+            else
+            {
+                await JS.InvokeVoidAsync("alert", I18n.Get("Home_ErrorReset"));
+            }
+        }
+        catch (Exception ex)
+        {
+            await JS.InvokeVoidAsync("alert", $"{I18n.Get("Home_ErrorReset")}: {ex.Message}");
+        }
+    }
+
+    private async Task TriggerFileUpload()
+    {
+        await JS.InvokeVoidAsync("eval", "document.getElementById('backgroundUpload').click()");
+    }
+}

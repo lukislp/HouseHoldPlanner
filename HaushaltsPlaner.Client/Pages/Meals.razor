@@ -1,0 +1,633 @@
+﻿@page "/meals"
+@using HaushaltsPlaner.Shared.DTOs
+@using HaushaltsPlaner.Client.Services
+@inject MealPlanService MealPlanService
+@inject RecipeService RecipeService
+@inject NavigationManager Navigation
+@inject AuthenticationService AuthService
+@inject IJSRuntime JS
+@implements IDisposable
+@inherits LocalizedComponentBase
+
+<PageTitle>@I18n.Get("PageTitle_Meals")</PageTitle>
+
+<div class="meals-container">
+    <!-- Header -->
+    <div class="meals-header">
+        <button class="back-btn" @onclick="GoBack">
+            <Icon Name="arrow-left" Size="20" Color="currentColor" />
+            @I18n.Get("Common_Back")
+        </button>
+        <h1 class="page-title">@I18n.Get("Meals_Title")</h1>
+        <button class="add-meal-btn" @onclick="ShowCreateMealModal">
+            <Icon Name="utensils" Size="20" Color="white" />
+            @I18n.Get("Meals_BtnAdd")
+        </button>
+    </div>
+
+    <!-- Week Navigation -->
+    <div class="week-navigation">
+        <button class="nav-btn" @onclick="PreviousWeek">
+            <Icon Name="arrow-left" Size="20" Color="currentColor" />
+        </button>
+        <h2 class="current-week">
+            @currentWeekStart.ToString("dd. MMM", CurrentCulture) -
+            @currentWeekEnd.ToString("dd. MMM yyyy", CurrentCulture)
+        </h2>
+        <button class="nav-btn" @onclick="NextWeek">
+            <Icon Name="arrow-left" Size="20" Color="currentColor" Style="transform: rotate(180deg);" />
+        </button>
+    </div>
+
+    @if (isLoading)
+    {
+        <div class="loading-state">
+            <div class="spinner-large"></div>
+            <p>@I18n.Get("Meals_Loading")</p>
+        </div>
+    }
+    else
+    {
+        <!-- Meal Plan Calendar -->
+        <div class="meal-calendar">
+            @foreach (var day in weekDays)
+            {
+                <div class="day-card @(day.IsToday ? "today" : "")">
+                    <div class="day-header">
+                        <h3>@GetLocalizedDayName(day.Date)</h3>
+                        <span class="day-date">@day.Date.ToString("dd.MM.yyyy")</span>
+                    </div>
+
+                    <!-- Lunch -->
+                    <div class="meal-slot lunch">
+                        <div class="meal-slot-header">
+                            <Icon Name="sun" Size="18" Color="#f59e0b" />
+                            <span>@I18n.Get("Meals_Lunch")</span>
+                        </div>
+                        @{
+                            var lunch = day.Meals.FirstOrDefault(m => m.MealType == "Lunch");
+                        }
+                        @if (lunch != null)
+                        {
+                            <div class="meal-item" @onclick="() => ShowMealDetail(lunch)">
+                                <h4>@lunch.MealName</h4>
+                                @if (!string.IsNullOrEmpty(lunch.AssignedToName))
+                                {
+                                    <div class="meal-cook">
+                                        <Icon Name="user" Size="14" Color="#667eea" />
+                                        <span>@lunch.AssignedToName</span>
+                                    </div>
+                                }
+                            </div>
+                        }
+                        else
+                        {
+                            <button class="add-meal-slot-btn" @onclick="@(() => ShowCreateMealForDate(day.Date, "Lunch"))">
+                                <Icon Name="list" Size="16" Color="#9ca3af" />
+                                <span>@I18n.Get("Meals_Add")</span>
+                            </button>
+                        }
+                    </div>
+
+                    <!-- Dinner -->
+                    <div class="meal-slot dinner">
+                        <div class="meal-slot-header">
+                            <Icon Name="calendar" Size="18" Color="#8b5cf6" />
+                            <span>@I18n.Get("Meals_Dinner")</span>
+                        </div>
+                        @{
+                            var dinner = day.Meals.FirstOrDefault(m => m.MealType == "Dinner");
+                        }
+                        @if (dinner != null)
+                        {
+                            <div class="meal-item" @onclick="() => ShowMealDetail(dinner)">
+                                <h4>@dinner.MealName</h4>
+                                @if (!string.IsNullOrEmpty(dinner.AssignedToName))
+                                {
+                                    <div class="meal-cook">
+                                        <Icon Name="user" Size="14" Color="#667eea" />
+                                        <span>@dinner.AssignedToName</span>
+                                    </div>
+                                }
+                            </div>
+                        }
+                        else
+                        {
+                            <button class="add-meal-slot-btn" @onclick="@(() => ShowCreateMealForDate(day.Date, "Dinner"))">
+                                <Icon Name="list" Size="16" Color="#9ca3af" />
+                                <span>@I18n.Get("Meals_Add")</span>
+                            </button>
+                        }
+                    </div>
+                </div>
+            }
+        </div>
+    }
+
+    <!-- Create/Edit Meal Modal -->
+    @if (showMealModal)
+    {
+        <div class="modal-overlay" @onclick="CloseMealModal">
+            <div class="modal-content" @onclick:stopPropagation="true">
+                <div class="modal-header">
+                    <h2>@(editingMeal != null ? I18n.Get("Meals_ModalEdit") : I18n.Get("Meals_ModalNew"))</h2>
+                    <button class="close-btn" @onclick="CloseMealModal">
+                        <Icon Name="x" Size="24" Color="#6b7280" />
+                    </button>
+                </div>
+
+                <div class="modal-body">
+                    <!-- Select a recipe -->
+                    <div class="form-group recipe-select-group">
+                        <label>
+                            <Icon Name="utensils" Size="16" Color="#667eea" />
+                            @I18n.Get("Meals_SelectRecipe")
+                        </label>
+                        <select class="form-control" @bind="selectedRecipeId" @bind:after="LoadRecipeIntoForm">
+                            <option value="">@I18n.Get("Meals_SelectRecipeNone")</option>
+                            @foreach (var recipe in availableRecipes)
+                            {
+                                <option value="@recipe.Id">@recipe.Name @(!string.IsNullOrEmpty(recipe.Category) ? $"({recipe.Category})" : "")</option>
+                            }
+                        </select>
+                        @if (!string.IsNullOrEmpty(selectedRecipeId))
+                        {
+                            <small class="form-hint">
+                                <Icon Name="info" Size="14" Color="#667eea" />
+                                @I18n.Get("Meals_RecipeHint")
+                            </small>
+                        }
+                    </div>
+
+                    <div class="form-group">
+                        <label>@I18n.Get("Meals_FieldName")</label>
+                        <input type="text" class="form-control" @bind="mealName" placeholder="@I18n.Get("Meals_NamePlaceholder")" />
+                    </div>
+
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>@I18n.Get("Meals_FieldDate")</label>
+                            <input type="date" class="form-control" value="@mealDate" @oninput="@((e) => mealDate = e.Value?.ToString() ?? DateTime.Now.ToString("yyyy-MM-dd"))" />
+                        </div>
+
+                        <div class="form-group">
+                            <label>@I18n.Get("Meals_FieldType")</label>
+                            <select class="form-control" @bind="mealType">
+                                <option value="Lunch">@I18n.Get("Meals_Lunch")</option>
+                                <option value="Dinner">@I18n.Get("Meals_Dinner")</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="form-group">
+                        <label>@I18n.Get("Meals_FieldCook")</label>
+                        <select class="form-control" @bind="mealAssignedTo">
+                            <option value="">@I18n.Get("Meals_Nobody")</option>
+                            @foreach (var member in householdMembers)
+                            {
+                                <option value="@member.Id">@member.FullName</option>
+                            }
+                        </select>
+                    </div>
+
+                    <div class="form-group">
+                        <label>@I18n.Get("Meals_FieldRecipe")</label>
+                        <textarea class="form-control" @bind="mealRecipe" rows="4" placeholder="@I18n.Get("Meals_RecipePlaceholder")"></textarea>
+                    </div>
+
+                    <div class="form-group">
+                        <label>@I18n.Get("Meals_FieldIngredients")</label>
+                        <textarea class="form-control" @bind="mealIngredients" rows="3" placeholder="@I18n.Get("Meals_IngredientsListPlaceholder")"></textarea>
+                    </div>
+
+                    <div class="form-group">
+                        <label>@I18n.Get("Meals_FieldNotes")</label>
+                        <textarea class="form-control" @bind="mealNotes" rows="2" placeholder="@I18n.Get("Meals_NotesBigPlaceholder")"></textarea>
+                    </div>
+                </div>
+
+                <div class="modal-footer">
+                    <button class="btn-secondary" @onclick="CloseMealModal">@I18n.Get("Common_Cancel")</button>
+                    <button class="btn-primary" @onclick="SaveMeal">
+                        @(editingMeal != null ? I18n.Get("Meals_BtnSave") : I18n.Get("Meals_BtnPlan"))
+                    </button>
+                </div>
+            </div>
+        </div>
+    }
+
+    <!-- Meal Detail Modal -->
+    @if (selectedMeal != null)
+    {
+        <div class="modal-overlay" @onclick="CloseMealDetail">
+            <div class="modal-content small" @onclick:stopPropagation="true">
+                <div class="modal-header">
+                    <h2>@selectedMeal.MealName</h2>
+                    <div class="header-actions">
+                        <button class="icon-btn" @onclick="() => ShowEditMealModal(selectedMeal)">
+                            <Icon Name="settings" Size="20" Color="#6b7280" />
+                        </button>
+                        <button class="icon-btn delete" @onclick="() => DeleteMeal(selectedMeal.Id)">
+                            <Icon Name="trash" Size="20" Color="#ef4444" />
+                        </button>
+                        <button class="close-btn" @onclick="CloseMealDetail">
+                            <Icon Name="x" Size="24" Color="#6b7280" />
+                        </button>
+                    </div>
+                </div>
+
+                <div class="modal-body meal-detail">
+                    <div class="detail-item">
+                        <Icon Name="calendar" Size="20" Color="#667eea" />
+                        <div>
+                            <strong>@I18n.Get("Meals_DetailDateTime")</strong>
+                            <p>@selectedMeal.Date.ToString("dddd, dd. MMMM yyyy", CurrentCulture)</p>
+                            <p class="meal-type-badge">@(selectedMeal.MealType == "Lunch" ? I18n.Get("Meals_Lunch") : I18n.Get("Meals_Dinner"))</p>
+                        </div>
+                    </div>
+
+                    @if (!string.IsNullOrEmpty(selectedMeal.AssignedToName))
+                    {
+                        <div class="detail-item">
+                            <Icon Name="user" Size="20" Color="#667eea" />
+                            <div>
+                                <strong>@I18n.Get("Meals_DetailCook")</strong>
+                                <p>@selectedMeal.AssignedToName</p>
+                            </div>
+                        </div>
+                    }
+
+                    @if (!string.IsNullOrEmpty(selectedMeal.Recipe))
+                    {
+                        <div class="detail-item">
+                            <Icon Name="list" Size="20" Color="#667eea" />
+                            <div>
+                                <strong>@I18n.Get("Meals_DetailRecipe")</strong>
+                                <p class="recipe-text">@selectedMeal.Recipe</p>
+                            </div>
+                        </div>
+                    }
+
+                    @if (!string.IsNullOrEmpty(selectedMeal.Ingredients))
+                    {
+                        <div class="detail-item">
+                            <Icon Name="list" Size="20" Color="#667eea" />
+                            <div>
+                                <strong>@I18n.Get("Meals_DetailIngredients")</strong>
+                                <p class="ingredients-text">@selectedMeal.Ingredients</p>
+                            </div>
+                        </div>
+                    }
+
+                    @if (!string.IsNullOrEmpty(selectedMeal.Notes))
+                    {
+                        <div class="detail-item">
+                            <Icon Name="list" Size="20" Color="#667eea" />
+                            <div>
+                                <strong>@I18n.Get("Meals_DetailNotes")</strong>
+                                <p>@selectedMeal.Notes</p>
+                            </div>
+                        </div>
+                    }
+
+                    @if (!string.IsNullOrEmpty(selectedMeal.CreatedByName))
+                    {
+                        <div class="detail-item">
+                            <Icon Name="user" Size="20" Color="#9ca3af" />
+                            <div>
+                                <strong>@I18n.Get("Meals_DetailPlannedBy")</strong>
+                                <p>@selectedMeal.CreatedByName</p>
+                            </div>
+                        </div>
+                    }
+                </div>
+            </div>
+        </div>
+    }
+</div>
+
+@code {
+    private string GetLocalizedDayName(DateTime date) => date.DayOfWeek switch
+    {
+        DayOfWeek.Monday    => I18n.Get("Day_Monday"),
+        DayOfWeek.Tuesday   => I18n.Get("Day_Tuesday"),
+        DayOfWeek.Wednesday => I18n.Get("Day_Wednesday"),
+        DayOfWeek.Thursday  => I18n.Get("Day_Thursday"),
+        DayOfWeek.Friday    => I18n.Get("Day_Friday"),
+        DayOfWeek.Saturday  => I18n.Get("Day_Saturday"),
+        DayOfWeek.Sunday    => I18n.Get("Day_Sunday"),
+        _                   => date.ToString("dddd")
+    };
+
+    private DateTime currentWeekStart = DateTime.Today.AddDays(-(int)DateTime.Today.DayOfWeek + (int)DayOfWeek.Monday);
+    private DateTime currentWeekEnd => currentWeekStart.AddDays(6);
+    private List<MealDayDto> weekDays = new();
+    private List<UserDto> householdMembers = new();
+    private List<RecipeListDto> availableRecipes = new();
+    private bool isLoading = true;
+    private System.Threading.Timer? refreshTimer;
+    private const int RefreshIntervalSeconds = 60;
+
+    // Meal Modal
+    private bool showMealModal = false;
+    private MealPlanDto? editingMeal;
+    private string selectedRecipeId = "";
+    private string mealName = "";
+    private string mealDate = DateTime.Now.ToString("yyyy-MM-dd");
+    private string mealType = "Lunch";
+    private string mealAssignedTo = "";
+    private string mealRecipe = "";
+    private string mealIngredients = "";
+    private string mealNotes = "";
+
+    // Meal Detail
+    private MealPlanDto? selectedMeal;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var isAuthenticated = await AuthService.IsAuthenticatedAsync();
+        if (!isAuthenticated)
+        {
+            Navigation.NavigateTo("/login");
+            return;
+        }
+
+        householdMembers = await MealPlanService.GetHouseholdMembersAsync();
+        availableRecipes = await RecipeService.GetAllRecipesAsync();
+        await LoadWeek();
+        
+        // Start auto-refresh
+        StartAutoRefresh();
+    }
+
+    private void StartAutoRefresh()
+    {
+        refreshTimer = new System.Threading.Timer(async _ =>
+        {
+            try
+            {
+                // Refresh data without showing loading spinner
+                await InvokeAsync(async () =>
+           {
+               await LoadWeekQuiet();
+               StateHasChanged();
+           });
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Auto-refresh error: {ex.Message}");
+            }
+        }, null, TimeSpan.FromSeconds(RefreshIntervalSeconds), TimeSpan.FromSeconds(RefreshIntervalSeconds));
+    }
+
+    private async Task LoadRecipeIntoForm()
+    {
+        if (string.IsNullOrEmpty(selectedRecipeId)) return;
+    
+        try
+        {
+            var recipeId = int.Parse(selectedRecipeId);
+            var recipe = await RecipeService.GetRecipeByIdAsync(recipeId);
+        
+            if (recipe != null)
+            {
+                mealName = recipe.Name;
+                mealRecipe = recipe.Instructions ?? "";
+       
+                // Zutaten formatieren
+                if (recipe.Ingredients.Count > 0)
+                {
+                    mealIngredients = string.Join("\n", recipe.Ingredients
+                       .OrderBy(i => i.SortOrder)
+                       .Select(i =>
+                            {
+                                var amount = i.Amount.HasValue ? i.Amount.Value.ToString() : "";
+                                var unit = i.Unit ?? "";
+                                var name = i.Name;
+                                return $"{amount} {unit} {name}".Trim();
+                            }));
+                }
+       
+                // Note with prep and cook time
+                if (recipe.PrepTimeMinutes.HasValue || recipe.CookTimeMinutes.HasValue)
+                {
+                    var times = new List<string>();
+                    if (recipe.PrepTimeMinutes.HasValue)
+                        times.Add($"{I18n.Get("Recipes_DetailPrepTime")}: {recipe.PrepTimeMinutes} Min.");
+                    if (recipe.CookTimeMinutes.HasValue)
+                        times.Add($"{I18n.Get("Recipes_DetailCookTime")}: {recipe.CookTimeMinutes} Min.");
+                    if (recipe.Servings.HasValue)
+                        times.Add($"{I18n.Get("Recipes_DetailServings")}: {recipe.Servings}");
+      
+                    mealNotes = string.Join(" | ", times);
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error loading recipe: {ex.Message}");
+        }
+    }
+
+    private void ResetMealForm()
+    {
+        editingMeal = null;
+        selectedRecipeId = "";
+        mealName = "";
+        mealDate = DateTime.Now.ToString("yyyy-MM-dd");
+        mealType = "Lunch";
+        mealAssignedTo = "";
+        mealRecipe = "";
+        mealIngredients = "";
+        mealNotes = "";
+    }
+
+    private async Task LoadWeek()
+    {
+        isLoading = true;
+        try
+        {
+            await LoadWeekLogic();
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+    
+    // Quiet refresh without loading spinner
+    private async Task LoadWeekQuiet()
+    {
+        try
+        {
+            await LoadWeekLogic();
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error loading week (quiet): {ex.Message}");
+        }
+    }
+    
+    private async Task LoadWeekLogic()
+    {
+        var weekData = await MealPlanService.GetWeekMealsAsync(currentWeekStart);
+        if (weekData != null)
+        {
+            GenerateWeekDays(weekData.Meals);
+        }
+    }
+
+    private void GenerateWeekDays(List<MealPlanDto> meals)
+    {
+        weekDays.Clear();
+
+        for (int i = 0; i < 7; i++)
+        {
+            var date = currentWeekStart.AddDays(i);
+            var dayMeals = meals.Where(m => m.Date.Date == date.Date).ToList();
+
+            weekDays.Add(new MealDayDto
+            {
+                Date = date,
+                IsToday = date.Date == DateTime.Today,
+                Meals = dayMeals
+            });
+        }
+    }
+
+    private async Task PreviousWeek()
+    {
+        currentWeekStart = currentWeekStart.AddDays(-7);
+        await LoadWeek();
+    }
+
+    private async Task NextWeek()
+    {
+        currentWeekStart = currentWeekStart.AddDays(7);
+        await LoadWeek();
+    }
+
+    private void ShowMealDetail(MealPlanDto meal)
+    {
+        selectedMeal = meal;
+    }
+
+    private void CloseMealDetail()
+    {
+        selectedMeal = null;
+    }
+
+    // Meal CRUD
+    private void ShowCreateMealModal()
+    {
+        ResetMealForm();
+        showMealModal = true;
+    }
+
+    private void ShowCreateMealForDate(DateTime date, string type)
+    {
+        ResetMealForm();
+        mealDate = date.ToString("yyyy-MM-dd");
+        mealType = type;
+        showMealModal = true;
+    }
+
+    private void ShowEditMealModal(MealPlanDto meal)
+    {
+        CloseMealDetail();
+        editingMeal = meal;
+        mealName = meal.MealName;
+        mealDate = meal.Date.ToString("yyyy-MM-dd");
+        mealType = meal.MealType;
+        mealAssignedTo = meal.AssignedToUserId?.ToString() ?? "";
+        mealRecipe = meal.Recipe ?? "";
+        mealIngredients = meal.Ingredients ?? "";
+        mealNotes = meal.Notes ?? "";
+        selectedRecipeId = ""; // Set recipe ID here if needed
+        showMealModal = true;
+    }
+
+    private void CloseMealModal()
+    {
+        showMealModal = false;
+        editingMeal = null;
+    }
+
+    private async Task SaveMeal()
+    {
+        if (string.IsNullOrWhiteSpace(mealName)) return;
+
+        try
+        {
+            if (editingMeal != null)
+            {
+                var request = new UpdateMealPlanRequest
+                {
+                    Id = editingMeal.Id,
+                    MealName = mealName,
+                    Date = DateTime.Parse(mealDate),
+                    MealType = mealType,
+                    Recipe = mealRecipe,
+                    Ingredients = mealIngredients,
+                    Notes = mealNotes,
+                    AssignedToUserId = string.IsNullOrEmpty(mealAssignedTo) ? null : int.Parse(mealAssignedTo)
+                };
+                await MealPlanService.UpdateMealPlanAsync(request);
+            }
+            else
+            {
+                var request = new CreateMealPlanRequest
+                {
+                    MealName = mealName,
+                    Date = DateTime.Parse(mealDate),
+                    MealType = mealType,
+                    Recipe = mealRecipe,
+                    Ingredients = mealIngredients,
+                    Notes = mealNotes,
+                    AssignedToUserId = string.IsNullOrEmpty(mealAssignedTo) ? null : int.Parse(mealAssignedTo)
+                };
+                await MealPlanService.CreateMealPlanAsync(request);
+            }
+
+            await LoadWeek();
+            CloseMealModal();
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error saving meal: {ex.Message}");
+        }
+    }
+
+    private async Task DeleteMeal(int id)
+    {
+        if (!await JS.InvokeAsync<bool>("confirm", I18n.Get("Meals_ConfirmDelete"))) return;
+
+        try
+        {
+            await MealPlanService.DeleteMealPlanAsync(id);
+            await LoadWeek();
+            CloseMealDetail();
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error deleting meal: {ex.Message}");
+        }
+    }
+
+    private void GoBack()
+    {
+        Navigation.NavigateTo("/home");
+    }
+    
+    public void Dispose()
+    {
+        refreshTimer?.Dispose();
+    }
+
+    public class MealDayDto
+    {
+        public DateTime Date { get; set; }
+        public bool IsToday { get; set; }
+        public List<MealPlanDto> Meals { get; set; } = new();
+    }
+}

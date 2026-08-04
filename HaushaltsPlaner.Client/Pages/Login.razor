@@ -1,0 +1,152 @@
+﻿@page "/"
+@page "/login"
+@layout EmptyLayout
+@using HaushaltsPlaner.Shared.DTOs
+@using HaushaltsPlaner.Client.Services
+@inject AuthenticationService AuthService
+@inject NavigationManager Navigation
+@inject IJSRuntime JS
+@inherits LocalizedComponentBase
+
+<PageTitle>@I18n.Get("PageTitle_Login")</PageTitle>
+
+<div class="login-container">
+    <div class="login-card">
+        <div class="login-header">
+            <div class="logo">
+                <Icon Name="home" Size="64" Color="#667eea" />
+            </div>
+            <h2>@I18n.Get("Login_Title")</h2>
+            <p>@I18n.Get("Login_Welcome")</p>
+        </div>
+
+        @if (!string.IsNullOrEmpty(errorMessage))
+        {
+            <div class="alert alert-danger">
+                <Icon Name="bell" Size="20" Color="#991b1b" CssClass="alert-icon" />
+                <span>@errorMessage</span>
+            </div>
+        }
+
+        <EditForm Model="@loginRequest" OnValidSubmit="HandleLogin">
+            <DataAnnotationsValidator />
+
+            <div class="form-group">
+                <label for="username">
+                    <Icon Name="user" Size="20" Color="#667eea" />
+                    @I18n.Get("Login_Username")
+                </label>
+                <div class="input-wrapper">
+                    <Icon Name="user" Size="20" Color="#9ca3af" CssClass="input-icon" />
+                    <InputText id="username" class="form-control" @bind-Value="loginRequest.Username" placeholder="@I18n.Get("Login_UsernamePlaceholder")" disabled="@isLoading" />
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label for="password">
+                    <Icon Name="lock" Size="20" Color="#667eea" />
+                    @I18n.Get("Login_Password")
+                </label>
+                <div class="input-wrapper">
+                    <Icon Name="lock" Size="20" Color="#9ca3af" CssClass="input-icon" />
+                    <InputText id="password" type="password" class="form-control" @bind-Value="loginRequest.Password" placeholder="@I18n.Get("Login_PasswordPlaceholder")" disabled="@isLoading" />
+                </div>
+            </div>
+
+            <button type="submit" class="btn btn-primary btn-block" disabled="@isLoading">
+                @if (isLoading)
+                {
+                    <span class="spinner-border spinner-border-sm"></span>
+                }
+                else
+                {
+                    <Icon Name="check" Size="20" Color="white" />
+                }
+                <span>@I18n.Get("Login_Submit")</span>
+            </button>
+        </EditForm>
+
+        <div class="login-footer">
+            <p>@I18n.Get("Login_NoAccount") <a href="/register" class="link-primary">@I18n.Get("Login_Register")</a></p>
+        </div>
+    </div>
+
+    <div class="background-decoration">
+        <div class="circle circle-1"></div>
+        <div class="circle circle-2"></div>
+        <div class="circle circle-3"></div>
+    </div>
+</div>
+
+@code {
+    private LoginRequest loginRequest = new();
+    private string errorMessage = string.Empty;
+    private bool isLoading = false;
+    private bool isNavigating = false;
+
+    private async Task HandleLogin()
+    {
+        // Prevent double-submission
+        if (isLoading || isNavigating)
+        {
+            return;
+        }
+
+        isLoading = true;
+        errorMessage = string.Empty;
+        StateHasChanged(); // Force UI update for mobile
+        
+        try
+        {
+            // Validate input
+            if (string.IsNullOrWhiteSpace(loginRequest.Username) || string.IsNullOrWhiteSpace(loginRequest.Password))
+            {
+                errorMessage = I18n.Get("Login_ErrorEmpty");
+                return;
+            }
+
+            var result = await AuthService.LoginAsync(loginRequest);
+
+            if (result?.Success == true)
+            {
+                isNavigating = true;
+                StateHasChanged();
+
+                await Task.Delay(150);
+
+                try
+                {
+                    Navigation.NavigateTo("/home");
+                }
+                catch (Exception navEx)
+                {
+                    Console.WriteLine($"Navigation error: {navEx.Message}");
+                    await JS.InvokeVoidAsync("eval", "window.location.href = '/home'");
+                }
+            }
+            else
+            {
+                errorMessage = result?.Message ?? I18n.Get("Login_ErrorFailed");
+            }
+        }
+        catch (HttpRequestException ex)
+        {
+            errorMessage = I18n.Get("Login_ErrorNetwork");
+            Console.WriteLine($"Network error: {ex.Message}");
+        }
+        catch (Exception ex)
+        {
+            errorMessage = I18n.Get("Login_ErrorGeneric");
+            Console.WriteLine($"Login error: {ex.Message}");
+            Console.WriteLine($"Stack trace: {ex.StackTrace}");
+        }
+        finally
+        {
+            if (!isNavigating)
+            {
+                isLoading = false;
+                StateHasChanged(); // Force UI update
+            }
+        }
+    }
+}

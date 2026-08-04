@@ -1,0 +1,439 @@
+﻿@page "/lists"
+@using HaushaltsPlaner.Shared.DTOs
+@using HaushaltsPlaner.Client.Services
+@inject CalendarService CalendarService
+@inject NavigationManager Navigation
+@inject AuthenticationService AuthService
+@implements IDisposable
+@inherits LocalizedComponentBase
+
+<PageTitle>@I18n.Get("PageTitle_Lists")</PageTitle>
+
+<div class="todos-container">
+    <!-- Header -->
+    <div class="todos-header">
+        <button class="back-btn" @onclick="GoBack">
+            <Icon Name="arrow-left" Size="20" Color="currentColor" />
+            @I18n.Get("Lists_Back")
+        </button>
+        <h1 class="page-title">@I18n.Get("Lists_Title")</h1>
+        <div class="header-date">
+            <Icon Name="calendar" Size="20" Color="#667eea" />
+            <span>@DateTime.Today.ToString("dddd, dd. MMMM yyyy", CurrentCulture)</span>
+        </div>
+    </div>
+
+    @if (isLoading)
+    {
+        <div class="loading-state">
+            <div class="spinner-large"></div>
+            <p>@I18n.Get("Lists_Loading")</p>
+        </div>
+    }
+    else if (!todayEvents.Any())
+    {
+        <div class="empty-state">
+            <Icon Name="calendar" Size="80" Color="#d1d5db" />
+            <h3>@I18n.Get("Lists_Empty")</h3>
+            <p>@I18n.Get("Lists_EmptyDesc")</p>
+            <button class="btn-primary" @onclick="GoToCalendar">
+                <Icon Name="calendar" Size="20" Color="white" />
+                @I18n.Get("Lists_GoCalendar")
+            </button>
+        </div>
+    }
+    else
+    {
+        <!-- Statistics -->
+        <div class="stats-bar">
+            <div class="stat-card">
+                <div class="stat-icon" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);">
+                    <Icon Name="list" Size="24" Color="white" />
+                </div>
+                <div class="stat-info">
+                    <h4>@todayEvents.Count</h4>
+                    <p>@I18n.Get("Lists_StatTotal")</p>
+                </div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-icon" style="background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);">
+                    <Icon Name="calendar" Size="24" Color="white" />
+                </div>
+                <div class="stat-info">
+                    <h4>@upcomingEvents.Count</h4>
+                    <p>@I18n.Get("Lists_StatUpcoming")</p>
+                </div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-icon" style="background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);">
+                    <Icon Name="check" Size="24" Color="white" />
+                </div>
+                <div class="stat-info">
+                    <h4>@pastEvents.Count</h4>
+                    <p>@I18n.Get("Lists_StatPast")</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Upcoming Events -->
+        @if (upcomingEvents.Any())
+        {
+            <div class="section">
+                <h2 class="section-title">
+                    <Icon Name="calendar" Size="24" Color="#667eea" />
+                    @I18n.Get("Lists_SectionUpcoming")
+                </h2>
+                <div class="events-list">
+                    @foreach (var evt in upcomingEvents)
+                    {
+                        <div class="event-card upcoming" style="border-left: 4px solid @evt.Color;" @onclick="() => ShowEventDetail(evt)">
+                            <div class="event-time-badge">
+                                @if (evt.IsAllDay)
+                                {
+                                    <span>@I18n.Get("Lists_AllDay")</span>
+                                }
+                                else
+                                {
+                                    <span>@GetEventTimeDisplay(evt)</span>
+                                }
+                            </div>
+                            <div class="event-content">
+                                <h3>@evt.Title</h3>
+                                @if (!string.IsNullOrEmpty(evt.Description))
+                                {
+                                    <p class="event-description">@evt.Description</p>
+                                }
+                                <div class="event-meta">
+                                    @if (!string.IsNullOrEmpty(evt.Location))
+                                    {
+                                        <span class="meta-tag">
+                                            <Icon Name="location" Size="14" Color="#667eea" />
+                                            @evt.Location
+                                        </span>
+                                    }
+                                    @if (!string.IsNullOrEmpty(evt.AssignedToName))
+                                    {
+                                        <span class="meta-tag">
+                                            <Icon Name="user" Size="14" Color="#00b894" />
+                                            @evt.AssignedToName
+                                        </span>
+                                    }
+                                </div>
+                            </div>
+                            <div class="event-arrow">
+                                <Icon Name="arrow-left" Size="20" Color="#667eea" Style="transform: rotate(180deg);" />
+                            </div>
+                        </div>
+                    }
+                </div>
+            </div>
+        }
+
+        <!-- Past Events -->
+        @if (pastEvents.Any())
+        {
+            <div class="section">
+                <h2 class="section-title">
+                    <Icon Name="check" Size="24" Color="#9ca3af" />
+                    @I18n.Get("Lists_SectionPast")
+                </h2>
+                <div class="events-list">
+                    @foreach (var evt in pastEvents)
+                    {
+                        <div class="event-card past" style="border-left: 4px solid @evt.Color;" @onclick="() => ShowEventDetail(evt)">
+                            <div class="event-time-badge">
+                                @if (evt.IsAllDay)
+                                {
+                                    <span>@I18n.Get("Lists_AllDay")</span>
+                                }
+                                else
+                                {
+                                    <span>@GetEventTimeDisplay(evt)</span>
+                                }
+                            </div>
+                            <div class="event-content">
+                                <h3>@evt.Title</h3>
+                                @if (!string.IsNullOrEmpty(evt.Description))
+                                {
+                                    <p class="event-description">@evt.Description</p>
+                                }
+                                <div class="event-meta">
+                                    @if (!string.IsNullOrEmpty(evt.Location))
+                                    {
+                                        <span class="meta-tag">
+                                            <Icon Name="location" Size="14" Color="#9ca3af" />
+                                            @evt.Location
+                                        </span>
+                                    }
+                                    @if (!string.IsNullOrEmpty(evt.AssignedToName))
+                                    {
+                                        <span class="meta-tag">
+                                            <Icon Name="user" Size="14" Color="#9ca3af" />
+                                            @evt.AssignedToName
+                                        </span>
+                                    }
+                                </div>
+                            </div>
+                            <div class="event-arrow">
+                                <Icon Name="arrow-left" Size="20" Color="#9ca3af" Style="transform: rotate(180deg);" />
+                            </div>
+                        </div>
+                    }
+                </div>
+            </div>
+        }
+    }
+
+    <!-- Event Detail Modal -->
+    @if (selectedEvent != null)
+    {
+        <div class="modal-overlay" @onclick="CloseEventDetail">
+            <div class="modal-content small" @onclick:stopPropagation="true">
+                <div class="modal-header">
+                    <h2>@selectedEvent.Title</h2>
+                    <button class="close-btn" @onclick="CloseEventDetail">
+                        <Icon Name="x" Size="24" Color="#6b7280" />
+                    </button>
+                </div>
+
+                <div class="modal-body event-detail">
+                    @if (!string.IsNullOrEmpty(selectedEvent.Description))
+                    {
+                        <div class="detail-item">
+                            <Icon Name="list" Size="20" Color="#667eea" />
+                            <div>
+                                <strong>@I18n.Get("Calendar_DetailDesc")</strong>
+                                <p>@selectedEvent.Description</p>
+                            </div>
+                        </div>
+                    }
+
+                    <div class="detail-item">
+                        <Icon Name="calendar" Size="20" Color="#667eea" />
+                        <div>
+                            <strong>@(selectedEvent.IsAllDay ? I18n.Get("Calendar_DetailDate") : I18n.Get("Calendar_DetailStart"))</strong>
+                            <p>@GetEventDateTimeDisplay(selectedEvent)</p>
+                        </div>
+                    </div>
+
+                    @if (!string.IsNullOrEmpty(selectedEvent.Location))
+                    {
+                        <div class="detail-item">
+                            <Icon Name="location" Size="20" Color="#667eea" />
+                            <div>
+                                <strong>@I18n.Get("Calendar_DetailLocation")</strong>
+                                <p>@selectedEvent.Location</p>
+                            </div>
+                        </div>
+                    }
+
+                    @if (!string.IsNullOrEmpty(selectedEvent.AssignedToName))
+                    {
+                        <div class="detail-item">
+                            <Icon Name="user" Size="20" Color="#667eea" />
+                            <div>
+                                <strong>@I18n.Get("Calendar_DetailAssigned")</strong>
+                                <p>@selectedEvent.AssignedToName</p>
+                            </div>
+                        </div>
+                    }
+
+                    @if (selectedEvent.IsRecurring)
+                    {
+                        <div class="detail-item">
+                            <Icon Name="calendar" Size="20" Color="#667eea" />
+                            <div>
+                                <strong>@I18n.Get("Calendar_DetailRecurrence")</strong>
+                                <p>@GetRecurrenceText(selectedEvent)</p>
+                            </div>
+                        </div>
+                    }
+
+                    @if (!string.IsNullOrEmpty(selectedEvent.CreatedByName))
+                    {
+                        <div class="detail-item">
+                            <Icon Name="user" Size="20" Color="#9ca3af" />
+                            <div>
+                                <strong>@I18n.Get("Calendar_DetailCreatedBy")</strong>
+                                <p>@selectedEvent.CreatedByName</p>
+                            </div>
+                        </div>
+                    }
+                </div>
+
+                <div class="modal-footer">
+                    <button class="btn-primary" @onclick="GoToCalendar">
+                        <Icon Name="calendar" Size="20" Color="white" />
+                        @I18n.Get("Lists_EditInCalendar")
+                    </button>
+                </div>
+            </div>
+        </div>
+    }
+</div>
+
+@code {
+    private List<CalendarEventDto> todayEvents = new();
+    private List<CalendarEventDto> upcomingEvents = new();
+    private List<CalendarEventDto> pastEvents = new();
+    private CalendarEventDto? selectedEvent;
+    private UserDto? currentUser;
+    private bool isLoading = true;
+    private System.Threading.Timer? refreshTimer;
+    private const int RefreshIntervalSeconds = 60;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var isAuthenticated = await AuthService.IsAuthenticatedAsync();
+        if (!isAuthenticated)
+        {
+            Navigation.NavigateTo("/login");
+            return;
+        }
+
+        currentUser = await AuthService.GetCurrentUserAsync();
+        await LoadTodayEvents();
+        
+        // Start auto-refresh
+        StartAutoRefresh();
+    }
+
+    private void StartAutoRefresh()
+    {
+        refreshTimer = new System.Threading.Timer(async _ =>
+        {
+            try
+            {
+                await InvokeAsync(async () =>
+  {
+      await LoadTodayEventsQuiet();
+      StateHasChanged();
+  });
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Auto-refresh error: {ex.Message}");
+            }
+        }, null, TimeSpan.FromSeconds(RefreshIntervalSeconds), TimeSpan.FromSeconds(RefreshIntervalSeconds));
+    }
+
+    private async Task LoadTodayEvents()
+    {
+        isLoading = true;
+        try
+        {
+            await LoadEventsLogic();
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+    
+    // Quiet refresh without loading spinner
+    private async Task LoadTodayEventsQuiet()
+    {
+        try
+        {
+            await LoadEventsLogic();
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error loading today's events (quiet): {ex.Message}");
+        }
+    }
+    
+    private async Task LoadEventsLogic()
+    {
+        var today = DateTime.Today;
+        var monthData = await CalendarService.GetMonthEventsAsync(today.Year, today.Month);
+        
+        if (monthData != null && currentUser != null)
+        {
+            // Filter events for today that are assigned to current user
+            todayEvents = monthData.Events
+                  .Where(e => e.StartDate.Date == today &&
+                     (e.AssignedToUserId == currentUser.Id || e.AssignedToUserId == null))
+                  .OrderBy(e => e.StartDate)
+               .ToList();
+
+            var now = DateTime.Now;
+            
+            // Split into upcoming and past
+            upcomingEvents = todayEvents
+            .Where(e => e.IsAllDay || e.StartDate > now)
+           .ToList();
+
+            pastEvents = todayEvents
+       .Where(e => !e.IsAllDay && e.StartDate <= now)
+             .ToList();
+        }
+    }
+
+    private void ShowEventDetail(CalendarEventDto evt)
+    {
+        selectedEvent = evt;
+    }
+
+    private void CloseEventDetail()
+    {
+        selectedEvent = null;
+    }
+
+    private string GetEventTimeDisplay(CalendarEventDto evt)
+    {
+        if (evt.IsAllDay)
+            return I18n.Get("Lists_AllDay");
+
+        if (evt.EndDate.HasValue && evt.EndDate.Value.Date == evt.StartDate.Date && evt.EndDate.Value.TimeOfDay != TimeSpan.Zero)
+        {
+            return $"{evt.StartDate:HH:mm} - {evt.EndDate.Value:HH:mm}";
+        }
+
+        return evt.StartDate.TimeOfDay != TimeSpan.Zero ? $"{evt.StartDate:HH:mm}" : I18n.Get("Lists_AllDay");
+    }
+
+    private string GetEventDateTimeDisplay(CalendarEventDto evt)
+    {
+        if (evt.IsAllDay)
+        {
+            return I18n.Get("Lists_Today");
+        }
+
+        if (evt.EndDate.HasValue && evt.EndDate.Value.Date == evt.StartDate.Date && evt.EndDate.Value.TimeOfDay != TimeSpan.Zero)
+        {
+            return I18n.Format("Lists_TodayFrom", $"{evt.StartDate:HH:mm}", $"{evt.EndDate.Value:HH:mm}");
+        }
+
+        return evt.StartDate.TimeOfDay != TimeSpan.Zero ? I18n.Format("Lists_TodayAt", $"{evt.StartDate:HH:mm}") : I18n.Get("Lists_Today");
+    }
+
+    private string GetRecurrenceText(CalendarEventDto evt)
+    {
+        var interval = evt.RecurrenceInterval ?? 1;
+        var type = evt.RecurrenceType.ToLower();
+      
+        return type switch
+        {
+            "weekly" => interval == 1 ? I18n.Get("Lists_Recurrence_Weekly") : I18n.Format("Lists_Recurrence_WeeklyN", interval),
+            "monthly" => interval == 1 ? I18n.Get("Lists_Recurrence_Monthly") : I18n.Format("Lists_Recurrence_MonthlyN", interval),
+            "yearly" => interval == 1 ? I18n.Get("Lists_Recurrence_Yearly") : I18n.Format("Lists_Recurrence_YearlyN", interval),
+            _ => I18n.Get("Lists_Recurrence_Once")
+        };
+    }
+
+    private void GoToCalendar()
+    {
+        Navigation.NavigateTo("/calendar");
+    }
+
+    private void GoBack()
+    {
+        Navigation.NavigateTo("/home");
+    }
+    
+    public void Dispose()
+    {
+        refreshTimer?.Dispose();
+    }
+}

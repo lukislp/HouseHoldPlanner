@@ -1,0 +1,473 @@
+﻿@page "/family"
+@using HaushaltsPlaner.Shared.DTOs
+@using HaushaltsPlaner.Client.Services
+@inject FamilyService FamilyService
+@inject NavigationManager Navigation
+@inject AuthenticationService AuthService
+@inject IJSRuntime JS
+@inject IConfiguration Configuration
+@implements IDisposable
+@inherits LocalizedComponentBase
+
+<PageTitle>@I18n.Get("PageTitle_Family")</PageTitle>
+
+<div class="family-container">
+    <!-- Header -->
+    <div class="family-header">
+        <button class="back-btn" @onclick="GoBack">
+            <Icon Name="arrow-left" Size="20" Color="currentColor" />
+            @I18n.Get("Common_Back")
+        </button>
+        <h1 class="page-title">@I18n.Get("Family_Title")</h1>
+        <button class="invite-btn" @onclick="ShowInviteModal">
+            <Icon Name="user" Size="20" Color="white" />
+            @I18n.Get("Family_BtnInvite")
+        </button>
+    </div>
+
+    @if (isLoading)
+    {
+        <div class="loading-state">
+            <div class="spinner-large"></div>
+            <p>@I18n.Get("Common_Loading")</p>
+        </div>
+    }
+    else if (householdInfo != null)
+    {
+        <!-- Household Card -->
+        <div class="household-card">
+            <div class="household-header">
+                <div class="household-icon">
+                    <Icon Name="home" Size="48" Color="white" />
+                </div>
+                <div class="household-info">
+                    <h2>@householdInfo.Name</h2>
+                    <p class="household-meta">
+                        <Icon Name="users" Size="16" Color="#667eea" />
+                        <span>@householdInfo.MemberCount @(householdInfo.MemberCount == 1 ? I18n.Get("Family_Member") : I18n.Get("Family_Members"))</span>
+                        <span class="separator">•</span>
+                        <Icon Name="calendar" Size="16" Color="#667eea" />
+                        <span>@I18n.Format("Family_Since", householdInfo.CreatedAt.ToString("MMMM yyyy", CurrentCulture))</span>
+                    </p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Members Grid -->
+        <div class="members-section">
+            <h3 class="section-title">
+                <Icon Name="users" Size="24" Color="#667eea" />
+                @I18n.Get("Family_MembersTitle")
+            </h3>
+
+            <div class="members-grid">
+                @foreach (var member in householdInfo.Members)
+                {
+                    <div class="member-card @(member.IsCurrentUser ? "current-user" : "")">
+                        <div class="member-avatar">
+                            @if (!string.IsNullOrEmpty(member.ProfileImageUrl))
+                            {
+                                <img src="@GetProfileImageUrl(member.ProfileImageUrl)" alt="@member.FullName" />
+                            }
+                            else
+                            {
+                                <div class="avatar-placeholder">
+                                    @GetInitials(member.FullName)
+                                </div>
+                            }
+                            @if (member.IsCurrentUser)
+                            {
+                                <div class="current-badge">
+                                    <Icon Name="check" Size="12" Color="white" />
+                                </div>
+                            }
+                        </div>
+
+                        <div class="member-info">
+                            <h4>@member.FullName</h4>
+                            <p class="member-username">@@@member.Username</p>
+                            <p class="member-email">
+                                <Icon Name="mail" Size="14" Color="#9ca3af" />
+                                @member.Email
+                            </p>
+                            @if (!string.IsNullOrEmpty(member.Role))
+                            {
+                                <span class="member-role @GetRoleClass(member.Role)">
+                                    @GetRoleDisplay(member.Role)
+                                </span>
+                            }
+                            <p class="member-joined">
+                                @I18n.Format("Family_MemberJoined", member.JoinedAt.ToString("dd.MM.yyyy"))
+                            </p>
+                        </div>
+
+                        @if (!member.IsCurrentUser)
+                        {
+                            <div class="member-actions">
+                                <button class="action-btn" @onclick="() => ShowEditRoleModal(member)" title="@I18n.Get("Family_TitleChangeRole")">
+                                    <Icon Name="settings" Size="18" Color="#6b7280" />
+                                </button>
+                                <button class="action-btn delete" @onclick="() => RemoveMember(member)" title="@I18n.Get("Family_TitleRemove")">
+                                    <Icon Name="trash" Size="18" Color="#ef4444" />
+                                </button>
+                            </div>
+                        }
+                    </div>
+                }
+            </div>
+        </div>
+
+        <!-- Statistics Cards -->
+        <div class="stats-section">
+            <h3 class="section-title">
+                <Icon Name="list" Size="24" Color="#667eea" />
+                @I18n.Get("Family_ActivityOverview")
+            </h3>
+
+            <div class="stats-grid">
+                <div class="stat-card">
+                    <div class="stat-icon" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);">
+                        <Icon Name="calendar" Size="32" Color="white" />
+                    </div>
+                    <div class="stat-content">
+                        <h4>@I18n.Get("Family_StatEvents")</h4>
+                        <p class="stat-value">@householdInfo.UpcomingEventsCount</p>
+                        <p class="stat-label">@I18n.Get("Family_StatEventsLabel")</p>
+                    </div>
+                </div>
+
+                <div class="stat-card">
+                    <div class="stat-icon" style="background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);">
+                        <Icon Name="utensils" Size="32" Color="white" />
+                    </div>
+                    <div class="stat-content">
+                        <h4>@I18n.Get("Family_StatMeals")</h4>
+                        <p class="stat-value">@householdInfo.PlannedMealsCount</p>
+                        <p class="stat-label">@I18n.Get("Family_StatMealsLabel")</p>
+                    </div>
+                </div>
+
+                <div class="stat-card">
+                    <div class="stat-icon" style="background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);">
+                        <Icon Name="list" Size="32" Color="white" />
+                    </div>
+                    <div class="stat-content">
+                        <h4>@I18n.Get("Family_StatTasks")</h4>
+                        <p class="stat-value">@householdInfo.OpenTodoItemsCount</p>
+                        <p class="stat-label">@I18n.Get("Family_StatTasksLabel")</p>
+                    </div>
+                </div>
+
+                <div class="stat-card">
+                    <div class="stat-icon" style="background: linear-gradient(135deg, #43e97b 0%, #38f9d7 100%);">
+                        <Icon Name="message" Size="32" Color="white" />
+                    </div>
+                    <div class="stat-content">
+                        <h4>@I18n.Get("Family_StatMessages")</h4>
+                        <p class="stat-value">@householdInfo.UnreadMessagesCount</p>
+                        <p class="stat-label">@I18n.Get("Family_StatMessagesLabel")</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    }
+
+    <!-- Invite Modal -->
+    @if (showInviteModal)
+    {
+        <div class="modal-overlay" @onclick="CloseInviteModal">
+            <div class="modal-content small" @onclick:stopPropagation="true">
+                <div class="modal-header">
+                    <h2>@I18n.Get("Family_InviteTitle")</h2>
+                    <button class="close-btn" @onclick="CloseInviteModal">
+                        <Icon Name="x" Size="24" Color="#6b7280" />
+                    </button>
+                </div>
+
+                <div class="modal-body">
+                    <div class="invite-info">
+                        <Icon Name="mail" Size="48" Color="#667eea" />
+                        <p>@I18n.Get("Family_InviteDesc")</p>
+                    </div>
+
+                    <div class="form-group">
+                        <label>@I18n.Get("Family_InviteEmail")</label>
+                        <input type="email" class="form-control" @bind="inviteEmail" placeholder="@I18n.Get("Family_InviteEmailPlaceholder")" />
+                    </div>
+
+                    <div class="form-group">
+                        <label>@I18n.Get("Family_InviteRole")</label>
+                        <select class="form-control" @bind="inviteRole">
+                            <option value="">@I18n.Get("Family_RoleNone")</option>
+                            <option value="Admin">@I18n.Get("Family_RoleAdmin")</option>
+                            <option value="Parent">@I18n.Get("Family_RoleParent")</option>
+                            <option value="Child">@I18n.Get("Family_RoleChild")</option>
+                            <option value="Guest">@I18n.Get("Family_RoleGuest")</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="modal-footer">
+                    <button class="btn-secondary" @onclick="CloseInviteModal">@I18n.Get("Family_BtnCancel")</button>
+                    <button class="btn-primary" @onclick="SendInvite">
+                        <Icon Name="mail" Size="20" Color="white" />
+                        @I18n.Get("Family_BtnSendInvite")
+                    </button>
+                </div>
+            </div>
+        </div>
+    }
+
+    <!-- Edit Role Modal -->
+    @if (showEditRoleModal && editingMember != null)
+    {
+        <div class="modal-overlay" @onclick="CloseEditRoleModal">
+            <div class="modal-content small" @onclick:stopPropagation="true">
+                <div class="modal-header">
+                    <h2>@I18n.Get("Family_EditRoleTitle")</h2>
+                    <button class="close-btn" @onclick="CloseEditRoleModal">
+                        <Icon Name="x" Size="24" Color="#6b7280" />
+                    </button>
+                </div>
+
+                <div class="modal-body">
+                    <div class="member-preview">
+                        <div class="avatar-small">@GetInitials(editingMember.FullName)</div>
+                        <div>
+                            <h4>@editingMember.FullName</h4>
+                            <p>@editingMember.Email</p>
+                        </div>
+                    </div>
+
+                    <div class="form-group">
+                        <label>@I18n.Get("Family_EditRoleLabel")</label>
+                        <select class="form-control" @bind="editRole">
+                            <option value="">@I18n.Get("Family_RoleNone")</option>
+                            <option value="Admin">@I18n.Get("Family_RoleAdmin")</option>
+                            <option value="Parent">@I18n.Get("Family_RoleParent")</option>
+                            <option value="Child">@I18n.Get("Family_RoleChild")</option>
+                            <option value="Guest">@I18n.Get("Family_RoleGuest")</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="modal-footer">
+                    <button class="btn-secondary" @onclick="CloseEditRoleModal">@I18n.Get("Family_BtnCancel")</button>
+                    <button class="btn-primary" @onclick="SaveRole">
+                        @I18n.Get("Family_BtnSave")
+                    </button>
+                </div>
+            </div>
+        </div>
+    }
+</div>
+
+@code {
+    private HouseholdInfoDto? householdInfo;
+    private bool isLoading = true;
+    private System.Threading.Timer? refreshTimer;
+    private const int RefreshIntervalSeconds = 60;
+
+    // Invite Modal
+    private bool showInviteModal = false;
+    private string inviteEmail = "";
+    private string inviteRole = "";
+
+    // Edit Role Modal
+    private bool showEditRoleModal = false;
+    private FamilyMemberDto? editingMember;
+    private string editRole = "";
+
+    protected override async Task OnInitializedAsync()
+    {
+        var isAuthenticated = await AuthService.IsAuthenticatedAsync();
+        if (!isAuthenticated)
+        {
+            Navigation.NavigateTo("/login");
+            return;
+        }
+
+        await LoadHousehold();
+        
+        // Start auto-refresh
+        StartAutoRefresh();
+    }
+    
+    private void StartAutoRefresh()
+    {
+        refreshTimer = new System.Threading.Timer(async _ =>
+        {
+            try
+            {
+                await InvokeAsync(async () =>
+          {
+              await LoadHouseholdQuiet();
+              StateHasChanged();
+          });
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Auto-refresh error: {ex.Message}");
+            }
+        }, null, TimeSpan.FromSeconds(RefreshIntervalSeconds), TimeSpan.FromSeconds(RefreshIntervalSeconds));
+    }
+
+    private async Task LoadHousehold()
+    {
+        isLoading = true;
+        try
+        {
+            await LoadHouseholdLogic();
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+    
+    // Quiet refresh without loading spinner
+    private async Task LoadHouseholdQuiet()
+    {
+        try
+        {
+            await LoadHouseholdLogic();
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error loading household (quiet): {ex.Message}");
+        }
+    }
+    
+    private async Task LoadHouseholdLogic()
+    {
+        householdInfo = await FamilyService.GetHouseholdInfoAsync();
+    }
+
+    private string GetProfileImageUrl(string profileImageUrl)
+    {
+        // If it's already a full URL, return as is
+        if (profileImageUrl.StartsWith("http"))
+        {
+            return profileImageUrl;
+        }
+
+        // Otherwise, construct the full URL pointing to the API server
+        var serverUrl = Configuration["ServerUrl"] ?? "http://localhost:5242";
+        return $"{serverUrl.TrimEnd('/')}{profileImageUrl}";
+    }
+
+    private string GetInitials(string fullName)
+    {
+        var parts = fullName.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        if (parts.Length >= 2)
+            return $"{parts[0][0]}{parts[^1][0]}".ToUpper();
+        return fullName.Length > 0 ? fullName[0].ToString().ToUpper() : "?";
+    }
+
+    private string GetRoleClass(string role)
+    {
+        return role.ToLower() switch
+        {
+            "admin" => "role-admin",
+            "parent" => "role-parent",
+            "child" => "role-child",
+            "guest" => "role-guest",
+            _ => "role-default"
+        };
+    }
+
+    private string GetRoleDisplay(string role)
+    {
+        return role switch
+        {
+            "Admin" => I18n.Get("Family_RoleAdmin"),
+            "Parent" => I18n.Get("Family_RoleParent"),
+            "Child" => I18n.Get("Family_RoleChild"),
+            "Guest" => I18n.Get("Family_RoleGuest"),
+            _ => role
+        };
+    }
+
+    // Invite Modal
+    private void ShowInviteModal()
+    {
+        inviteEmail = "";
+        inviteRole = "";
+        showInviteModal = true;
+    }
+
+    private void CloseInviteModal()
+    {
+        showInviteModal = false;
+    }
+
+    private async Task SendInvite()
+    {
+        if (string.IsNullOrWhiteSpace(inviteEmail)) return;
+
+        // TODO: Implement invite functionality
+        await JS.InvokeVoidAsync("alert", "Invite feature not implemented yet. This would send an email to " + inviteEmail + ".");
+        CloseInviteModal();
+    }
+
+    // Edit Role Modal
+    private void ShowEditRoleModal(FamilyMemberDto member)
+    {
+        editingMember = member;
+        editRole = member.Role ?? "";
+        showEditRoleModal = true;
+    }
+
+    private void CloseEditRoleModal()
+    {
+        showEditRoleModal = false;
+        editingMember = null;
+    }
+
+    private async Task SaveRole()
+    {
+        if (editingMember == null) return;
+
+        try
+        {
+            var request = new UpdateMemberRoleRequest
+            {
+                UserId = editingMember.Id,
+                Role = editRole
+            };
+
+            await FamilyService.UpdateMemberRoleAsync(request);
+            await LoadHousehold();
+            CloseEditRoleModal();
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error updating role: {ex.Message}");
+        }
+    }
+
+    private async Task RemoveMember(FamilyMemberDto member)
+    {
+        if (!await JS.InvokeAsync<bool>("confirm", I18n.Format("Family_ConfirmRemove", member.FullName))) return;
+
+        try
+        {
+            await FamilyService.RemoveMemberAsync(member.Id);
+            await LoadHousehold();
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error removing member: {ex.Message}");
+        }
+    }
+
+    private void GoBack()
+    {
+        Navigation.NavigateTo("/home");
+    }
+    
+    public void Dispose()
+    {
+        refreshTimer?.Dispose();
+    }
+}

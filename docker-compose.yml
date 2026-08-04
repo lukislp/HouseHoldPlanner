@@ -1,0 +1,26 @@
+services:
+  server:
+    build:
+      context: .
+      dockerfile: HaushaltsPlaner.Server/Dockerfile
+    environment:
+      - ASPNETCORE_URLS=http://+:5242
+      - ASPNETCORE_ENVIRONMENT=Production
+      - ConnectionStrings__DefaultConnection=Data Source=/app/data/haushaltsplaner.db
+      - Jwt__Key=${JWT_KEY:?JWT_KEY must be set in .env - see .env.example}
+    volumes:
+      - db-data:/app/data
+    restart: unless-stopped
+
+  client:
+    build:
+      context: .
+      dockerfile: HaushaltsPlaner.Client/Dockerfile
+    ports:
+      - "5004:80"
+    depends_on:
+      - server
+    restart: unless-stopped
+
+volumes:
+  db-data:

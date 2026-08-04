@@ -1,0 +1,337 @@
+﻿@page "/profile"
+@using HaushaltsPlaner.Shared.DTOs
+@using HaushaltsPlaner.Client.Services
+@using Microsoft.AspNetCore.Components.Forms
+@inject ProfileService ProfileService
+@inject AuthenticationService AuthService
+@inject NavigationManager Navigation
+@inject IJSRuntime JS
+@inject IConfiguration Configuration
+@inherits LocalizedComponentBase
+
+<PageTitle>@I18n.Get("PageTitle_Profile")</PageTitle>
+
+<div class="profile-container">
+    <!-- Header -->
+    <div class="profile-header">
+        <button class="back-btn" @onclick="GoBack">
+            <Icon Name="arrow-left" Size="20" Color="currentColor" />
+            @I18n.Get("Profile_Back")
+        </button>
+        <h1 class="page-title">@I18n.Get("Profile_Title")</h1>
+        <div></div>
+    </div>
+
+    @if (isLoading)
+    {
+        <div class="loading-state">
+            <div class="spinner-large"></div>
+            <p>@I18n.Get("Profile_Loading")</p>
+        </div>
+    }
+    else if (profile != null)
+    {
+        <div class="profile-content">
+            <!-- Profile Image Section -->
+            <div class="profile-image-section">
+                <div class="image-container">
+                    @if (!string.IsNullOrEmpty(profile.ProfileImageUrl))
+                    {
+                        <img src="@GetImageUrl(profile.ProfileImageUrl)" alt="Profilbild" class="profile-image" />
+                    }
+                    else
+                    {
+                        <div class="profile-placeholder">
+                            @GetInitials(profile.FullName)
+                        </div>
+                    }
+                    <div class="image-overlay">
+                        <button class="overlay-btn" @onclick="TriggerFileInput">
+                            <Icon Name="camera" Size="24" Color="white" />
+                        </button>
+                        @if (!string.IsNullOrEmpty(profile.ProfileImageUrl))
+                        {
+                            <button class="overlay-btn delete" @onclick="DeleteProfileImage">
+                                <Icon Name="trash" Size="24" Color="white" />
+                            </button>
+                        }
+                    </div>
+                </div>
+                <InputFile id="imageUploadInput" OnChange="HandleImageUpload" accept="image/*" style="display: none;" />
+  
+                @if (isUploading)
+                {
+                    <div class="upload-progress">
+                        <div class="spinner-small"></div>
+                        <span>@I18n.Get("Profile_Uploading")</span>
+                    </div>
+                }
+ 
+                @if (!string.IsNullOrEmpty(uploadError))
+                {
+                    <div class="error-message">@uploadError</div>
+                }
+            </div>
+
+            <!-- Profile Info Section -->
+            <div class="profile-info-section">
+                <div class="info-card">
+                    <div class="info-header">
+                        <h2>@I18n.Get("Profile_PersonalInfo")</h2>
+                        <button class="edit-btn" @onclick="() => isEditing = !isEditing">
+                            <Icon Name="settings" Size="20" Color="#667eea" />
+                            @(isEditing ? I18n.Get("Profile_BtnCancel") : I18n.Get("Profile_BtnEdit"))
+                        </button>
+                    </div>
+
+                    @if (!isEditing)
+                    {
+                        <div class="info-grid">
+                            <div class="info-item">
+                                <label>@I18n.Get("Profile_FieldUsername")</label>
+                                <p>@profile.Username</p>
+                            </div>
+
+                            <div class="info-item">
+                                <label>@I18n.Get("Profile_FieldFullName")</label>
+                                <p>@profile.FullName</p>
+                            </div>
+
+                            <div class="info-item">
+                                <label>@I18n.Get("Profile_FieldEmail")</label>
+                                <p>@profile.Email</p>
+                            </div>
+
+                            <div class="info-item">
+                                <label>@I18n.Get("Profile_FieldRole")</label>
+                                <p>@(string.IsNullOrEmpty(profile.Role) ? I18n.Get("Profile_RoleNone") : GetRoleDisplay(profile.Role))</p>
+                            </div>
+
+                            <div class="info-item">
+                                <label>@I18n.Get("Profile_FieldHousehold")</label>
+                                <p>@(profile.HouseholdName ?? I18n.Get("Profile_HouseholdNone"))</p>
+                            </div>
+
+                            <div class="info-item">
+                                <label>@I18n.Get("Profile_FieldMemberSince")</label>
+                                <p>@profile.CreatedAt.ToString("dd.MM.yyyy")</p>
+                            </div>
+                        </div>
+                    }
+                    else
+                    {
+                        <div class="edit-form">
+                            <div class="form-group">
+                                <label>@I18n.Get("Profile_FieldFullName")</label>
+                                <input type="text" class="form-control" @bind="editFullName" />
+                            </div>
+
+                            <div class="form-group">
+                                <label>@I18n.Get("Profile_FieldEmail")</label>
+                                <input type="email" class="form-control" @bind="editEmail" />
+                            </div>
+
+                            <div class="form-actions">
+                                <button class="btn-secondary" @onclick="CancelEdit">@I18n.Get("Profile_BtnCancel")</button>
+                                <button class="btn-primary" @onclick="SaveProfile">
+                                    @I18n.Get("Profile_BtnSave")
+                                </button>
+                            </div>
+                        </div>
+                    }
+                </div>
+
+                <!-- Actions Card -->
+                <div class="actions-card">
+                    <h3>@I18n.Get("Profile_Actions")</h3>
+                    <button class="action-button danger" @onclick="HandleLogout">
+                        <Icon Name="arrow-left" Size="20" Color="#ef4444" Style="transform: rotate(180deg);" />
+                        @I18n.Get("Profile_BtnLogout")
+                    </button>
+                </div>
+            </div>
+        </div>
+    }
+</div>
+
+@code {
+    private UserProfileDto? profile;
+    private bool isLoading = true;
+    private bool isEditing = false;
+    private bool isUploading = false;
+    private string? uploadError;
+
+    // Edit fields
+    private string editFullName = "";
+    private string editEmail = "";
+
+    protected override async Task OnInitializedAsync()
+    {
+        var isAuthenticated = await AuthService.IsAuthenticatedAsync();
+        if (!isAuthenticated)
+        {
+            Navigation.NavigateTo("/login");
+            return;
+        }
+
+        await LoadProfile();
+    }
+
+    private async Task LoadProfile()
+    {
+        isLoading = true;
+        try
+        {
+            profile = await ProfileService.GetProfileAsync();
+            if (profile != null)
+            {
+                editFullName = profile.FullName;
+                editEmail = profile.Email;
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error loading profile: {ex.Message}");
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private string GetImageUrl(string profileImageUrl)
+    {
+        // If it's already a full URL, return as is
+        if (profileImageUrl.StartsWith("http"))
+        {
+            return profileImageUrl;
+        }
+
+        // Otherwise, construct the full URL pointing to the API server
+        var serverUrl = Configuration["ServerUrl"] ?? "http://localhost:5242";
+        return $"{serverUrl.TrimEnd('/')}{profileImageUrl}";
+    }
+
+    private string GetInitials(string fullName)
+    {
+        var parts = fullName.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        if (parts.Length >= 2)
+            return $"{parts[0][0]}{parts[^1][0]}".ToUpper();
+        return fullName.Length > 0 ? fullName[0].ToString().ToUpper() : "?";
+    }
+
+    private string GetRoleDisplay(string role)
+    {
+        return role switch
+        {
+            "Admin" => I18n.Get("Profile_RoleAdmin"),
+            "Parent" => I18n.Get("Profile_RoleParent"),
+            "Child" => I18n.Get("Profile_RoleChild"),
+            "Guest" => I18n.Get("Profile_RoleGuest"),
+            _ => role
+        };
+    }
+
+    private async Task TriggerFileInput()
+    {
+        await JS.InvokeVoidAsync("eval", "document.getElementById('imageUploadInput').click()");
+    }
+
+    private async Task HandleImageUpload(InputFileChangeEventArgs e)
+    {
+        uploadError = null;
+        isUploading = true;
+
+        try
+        {
+            var file = e.File;
+    
+            if (file.Size > 5 * 1024 * 1024)
+            {
+                uploadError = I18n.Get("Profile_UploadErrorSize");
+                return;
+            }
+
+            var result = await ProfileService.UploadProfileImageAsync(file);
+    
+            if (result?.Success == true)
+            {
+                await LoadProfile();
+            }
+            else
+            {
+                uploadError = result?.ErrorMessage ?? I18n.Get("Home_ErrorUpload");
+            }
+        }
+        catch (Exception ex)
+        {
+            uploadError = I18n.Format("Profile_UploadError", ex.Message);
+        }
+        finally
+        {
+            isUploading = false;
+        }
+    }
+
+    private async Task DeleteProfileImage()
+    {
+        if (!await JS.InvokeAsync<bool>("confirm", I18n.Get("Profile_ConfirmDeleteImage"))) return;
+
+        try
+        {
+            await ProfileService.DeleteProfileImageAsync();
+            await LoadProfile();
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error deleting image: {ex.Message}");
+        }
+    }
+
+    private void CancelEdit()
+    {
+        isEditing = false;
+        if (profile != null)
+        {
+            editFullName = profile.FullName;
+            editEmail = profile.Email;
+        }
+    }
+
+    private async Task SaveProfile()
+    {
+        if (string.IsNullOrWhiteSpace(editFullName) || string.IsNullOrWhiteSpace(editEmail))
+        {
+            await JS.InvokeVoidAsync("alert", I18n.Get("Profile_ErrorFillFields"));
+            return;
+        }
+
+        try
+        {
+            var request = new UpdateProfileRequest
+            {
+                FullName = editFullName,
+                Email = editEmail
+            };
+
+            await ProfileService.UpdateProfileAsync(request);
+            await LoadProfile();
+            isEditing = false;
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error saving profile: {ex.Message}");
+        }
+    }
+
+    private async Task HandleLogout()
+    {
+        await AuthService.LogoutAsync();
+        Navigation.NavigateTo("/login");
+    }
+
+    private void GoBack()
+    {
+        Navigation.NavigateTo("/home");
+    }
+}
