@@ -1,5 +1,10 @@
 # HouseHoldPlanner
 
+[![CI/CD](https://github.com/lukislp/HouseHoldPlanner/actions/workflows/ci-cd.yml/badge.svg)](https://github.com/lukislp/HouseHoldPlanner/actions/workflows/ci-cd.yml)
+[![Release](https://img.shields.io/github/v/release/lukislp/HouseHoldPlanner)](https://github.com/lukislp/HouseHoldPlanner/releases)
+[![License: AGPL-3.0](https://img.shields.io/github/license/lukislp/HouseHoldPlanner)](LICENSE)
+[![.NET](https://img.shields.io/badge/.NET-10.0-512BD4)](https://dotnet.microsoft.com/)
+
 A self-hosted household management application built with Blazor WebAssembly and ASP.NET Core (.NET 10). Designed for families and shared households to coordinate tasks, meals, recipes, calendars, shopping lists, and real-time chat -- all in one place.
 
 *Project and namespace names in the codebase (`HaushaltsPlaner.*`) predate the public repo name and are unchanged.*
