@@ -1,3 +1,10 @@
+## [1.1.2](https://github.com/lukislp/HouseHoldPlanner/compare/v1.1.1...v1.1.2) (2026-08-07)
+
+
+### Bug Fixes
+
+* add a dashboard screenshot to the README ([f25c717](https://github.com/lukislp/HouseHoldPlanner/commit/f25c7171394afaa292950e7ba541ca0b0f927663))
+
 ## [1.1.1](https://github.com/lukislp/HouseHoldPlanner/compare/v1.1.0...v1.1.1) (2026-08-05)
 
 
