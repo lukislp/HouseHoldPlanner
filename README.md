@@ -9,6 +9,8 @@ A self-hosted household management application built with Blazor WebAssembly and
 
 *Project and namespace names in the codebase (`HaushaltsPlaner.*`) predate the public repo name and are unchanged.*
 
+![HouseHoldPlanner dashboard screenshot](docs/screenshot.png)
+
 ## Features
 
 - **Dashboard** -- overview card grid with live stats for all household modules
