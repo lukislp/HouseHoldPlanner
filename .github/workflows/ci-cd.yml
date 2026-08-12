@@ -126,30 +126,13 @@ jobs:
           path: nuget-vulnerabilities.json
           retention-days: 7
 
-  build:
-    # No implicit stage-sequencing under GitHub's DAG model (unlike GitLab) - wait for every
-    # test job explicitly.
-    needs: [test-build, test-lint, test-security]
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v7.0.1
-      - uses: actions/setup-dotnet@v6.0.0
-        with:
-          dotnet-version: ${{ env.DOTNET_VERSION }}
-      - uses: actions/cache@v6.1.0
-        with:
-          path: ~/.nuget/packages
-          key: nuget-${{ runner.os }}-${{ hashFiles('**/*.csproj', 'HaushaltsPlaner.sln') }}
-          restore-keys: |
-            nuget-${{ runner.os }}-
-      - run: dotnet restore HaushaltsPlaner.sln
-      - run: dotnet build HaushaltsPlaner.sln --configuration ${{ env.CONFIGURATION }} --no-restore
-
   # ---------------------------------------------------------------------
   # Version / docker / release — push to main only
   # ---------------------------------------------------------------------
   get-version:
-    needs: [build]
+    # No separate "build" job here - test-build already compiles the solution, and rebuilding
+    # it again here added no new signal, just wait time.
+    needs: [test-build, test-lint, test-security]
     if: github.event_name == 'push'
     runs-on: ubuntu-latest
     concurrency:
@@ -174,9 +157,9 @@ jobs:
         with:
           dry_run: true
           extra_plugins: |
-            @semantic-release/changelog
-            @semantic-release/github
-            @semantic-release/git
+            @semantic-release/changelog@7.0.0
+            @semantic-release/github@12.0.9
+            @semantic-release/git@11.0.1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       - name: No release needed for this push
@@ -333,9 +316,9 @@ jobs:
         uses: cycjimmy/semantic-release-action@b12c8f6015dc215fe37bc154d4ad456dd3833c90 # v6.0.0
         with:
           extra_plugins: |
-            @semantic-release/changelog
-            @semantic-release/github
-            @semantic-release/git
+            @semantic-release/changelog@7.0.0
+            @semantic-release/github@12.0.9
+            @semantic-release/git@11.0.1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         continue-on-error: true
@@ -358,8 +341,8 @@ jobs:
         uses: cycjimmy/semantic-release-action@b12c8f6015dc215fe37bc154d4ad456dd3833c90 # v6.0.0
         with:
           extra_plugins: |
-            @semantic-release/changelog
-            @semantic-release/github
-            @semantic-release/git
+            @semantic-release/changelog@7.0.0
+            @semantic-release/github@12.0.9
+            @semantic-release/git@11.0.1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
