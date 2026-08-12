@@ -169,7 +169,10 @@ jobs:
           echo "No releasable commits since the last tag (e.g. docs/ci/chore-only) - this is the expected, common case with Conventional Commits, not a failure. Downstream jobs below skip themselves via needs.get-version.outputs.published." | tee -a "$GITHUB_STEP_SUMMARY"
 
   docker-build-push-server:
-    needs: [get-version]
+    # Runs after semantic-release (not before, see that job) - so a build/push failure here
+    # never leaves an orphaned, un-tagged GHCR image blocking every future release via the
+    # duplicate-tag guard below.
+    needs: [get-version, semantic-release]
     if: github.event_name == 'push' && needs.get-version.outputs.published == 'true'
     runs-on: ubuntu-latest
     permissions:
@@ -204,7 +207,10 @@ jobs:
           cache-to: type=gha,mode=max
 
   docker-build-push-client:
-    needs: [get-version]
+    # Runs after semantic-release (not before, see that job) - so a build/push failure here
+    # never leaves an orphaned, un-tagged GHCR image blocking every future release via the
+    # duplicate-tag guard below.
+    needs: [get-version, semantic-release]
     if: github.event_name == 'push' && needs.get-version.outputs.published == 'true'
     runs-on: ubuntu-latest
     permissions:
@@ -283,7 +289,11 @@ jobs:
           exit-code: "0"
 
   semantic-release:
-    needs: [get-version, docker-build-push-server, docker-build-push-client]
+    # Runs before docker-build-push-server/client now (see those jobs' comments) - the real
+    # tag/release must exist before anything is published under that version, so a build/push
+    # failure can't leave an orphaned, un-tagged GHCR image blocking every future release via
+    # the duplicate-tag guard.
+    needs: [get-version]
     if: github.event_name == 'push' && needs.get-version.outputs.published == 'true'
     runs-on: ubuntu-latest
     concurrency:
