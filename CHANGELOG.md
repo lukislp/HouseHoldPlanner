@@ -1,3 +1,10 @@
+## [1.1.5](https://github.com/lukislp/HouseHoldPlanner/compare/v1.1.4...v1.1.5) (2026-09-03)
+
+
+### Bug Fixes
+
+* **ci:** bump docker/setup-buildx-action from 4.2.0 to 4.3.0 ([ce60ddf](https://github.com/lukislp/HouseHoldPlanner/commit/ce60ddf3a9b08df4f375c38a37d98bca1db767a2))
+
 ## [1.1.4](https://github.com/lukislp/HouseHoldPlanner/compare/v1.1.3...v1.1.4) (2026-09-03)
 
 
