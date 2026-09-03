@@ -1,3 +1,10 @@
+## [1.1.9](https://github.com/lukislp/HouseHoldPlanner/compare/v1.1.8...v1.1.9) (2026-09-03)
+
+
+### Bug Fixes
+
+* **deps:** Bump SQLitePCLRaw.lib.e_sqlite3 from 2.1.12 to 3.53.3 ([4aacdaa](https://github.com/lukislp/HouseHoldPlanner/commit/4aacdaa546cca97db8ddd0941f44cf3a83f936af))
+
 ## [1.1.8](https://github.com/lukislp/HouseHoldPlanner/compare/v1.1.7...v1.1.8) (2026-09-03)
 
 
