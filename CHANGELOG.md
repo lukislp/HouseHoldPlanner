@@ -1,3 +1,10 @@
+## [1.1.3](https://github.com/lukislp/HouseHoldPlanner/compare/v1.1.2...v1.1.3) (2026-09-03)
+
+
+### Bug Fixes
+
+* **ci:** add Dependabot for github-actions, nuget, docker ([b7c84ca](https://github.com/lukislp/HouseHoldPlanner/commit/b7c84cafa9399d405ddf3284f0519c8c9c3ca83a))
+
 ## [1.1.2](https://github.com/lukislp/HouseHoldPlanner/compare/v1.1.1...v1.1.2) (2026-08-07)
 
 
