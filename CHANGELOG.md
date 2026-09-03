@@ -1,3 +1,10 @@
+## [1.1.7](https://github.com/lukislp/HouseHoldPlanner/compare/v1.1.6...v1.1.7) (2026-09-03)
+
+
+### Bug Fixes
+
+* **deps:** Bump BCrypt.Net-Next from 4.0.3 to 4.2.0 ([2356074](https://github.com/lukislp/HouseHoldPlanner/commit/23560744dce69c5147fb3bc9255628f1110665a7))
+
 ## [1.1.6](https://github.com/lukislp/HouseHoldPlanner/compare/v1.1.5...v1.1.6) (2026-09-03)
 
 
