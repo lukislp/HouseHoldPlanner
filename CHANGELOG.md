@@ -1,3 +1,10 @@
+## [1.1.4](https://github.com/lukislp/HouseHoldPlanner/compare/v1.1.3...v1.1.4) (2026-09-03)
+
+
+### Bug Fixes
+
+* **ci:** bump aquasecurity/trivy-action ([dcdc93f](https://github.com/lukislp/HouseHoldPlanner/commit/dcdc93f627e81ec1eea0a363bcea31278ffedcf8))
+
 ## [1.1.3](https://github.com/lukislp/HouseHoldPlanner/compare/v1.1.2...v1.1.3) (2026-09-03)
 
 
