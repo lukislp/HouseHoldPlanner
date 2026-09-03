@@ -1,3 +1,10 @@
+## [1.1.8](https://github.com/lukislp/HouseHoldPlanner/compare/v1.1.7...v1.1.8) (2026-09-03)
+
+
+### Bug Fixes
+
+* **deps:** Bump HtmlAgilityPack from 1.12.4 to 1.13.0 ([5610fc1](https://github.com/lukislp/HouseHoldPlanner/commit/5610fc128b53f506458fbe335a42c213d247d9e5))
+
 ## [1.1.7](https://github.com/lukislp/HouseHoldPlanner/compare/v1.1.6...v1.1.7) (2026-09-03)
 
 
