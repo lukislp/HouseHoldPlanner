@@ -421,6 +421,7 @@ Logs/
 .vs/
 .github/*
 !.github/workflows/
+!.github/dependabot.yml
 
 # Never commit this - see CLAUDE.md handling elsewhere in this session's repos
 CLAUDE.md
