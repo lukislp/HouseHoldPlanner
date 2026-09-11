@@ -1,3 +1,10 @@
+## [1.1.11](https://github.com/lukislp/HouseHoldPlanner/compare/v1.1.10...v1.1.11) (2026-09-11)
+
+
+### Bug Fixes
+
+* **ci:** sign container images with Sigstore, attach SBOM and provenance ([2ba4089](https://github.com/lukislp/HouseHoldPlanner/commit/2ba4089a4b7816078c5774756c0ccbc2225ee17d))
+
 ## [1.1.10](https://github.com/lukislp/HouseHoldPlanner/compare/v1.1.9...v1.1.10) (2026-09-11)
 
 
