@@ -1,6 +1,6 @@
 # HouseHoldPlanner
 
-[![CI/CD](https://github.com/lukislp/HouseHoldPlanner/actions/workflows/ci-cd.yml/badge.svg)](https://github.com/lukislp/HouseHoldPlanner/actions/workflows/ci-cd.yml)
+[![CI/CD](https://github.com/lukislp/HouseHoldPlanner/actions/workflows/ci-cd.yml/badge.svg)](https://github.com/lukislp/HouseHoldPlanner/actions/workflows/ci-cd.yml) [![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/lukislp/HouseHoldPlanner/badge)](https://scorecard.dev/viewer/?uri=github.com/lukislp/HouseHoldPlanner) [![CodeQL](https://github.com/lukislp/HouseHoldPlanner/actions/workflows/github-code-scanning/codeql/badge.svg)](https://github.com/lukislp/HouseHoldPlanner/security/code-scanning)
 [![Release](https://img.shields.io/github/v/release/lukislp/HouseHoldPlanner)](https://github.com/lukislp/HouseHoldPlanner/releases)
 [![License: AGPL-3.0](https://img.shields.io/github/license/lukislp/HouseHoldPlanner)](LICENSE)
 [![.NET](https://img.shields.io/badge/.NET-10.0-512BD4)](https://dotnet.microsoft.com/)
