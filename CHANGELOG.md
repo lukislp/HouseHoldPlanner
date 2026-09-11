@@ -1,3 +1,10 @@
+## [1.1.13](https://github.com/lukislp/HouseHoldPlanner/compare/v1.1.12...v1.1.13) (2026-09-11)
+
+
+### Bug Fixes
+
+* **ci:** read-only GITHUB_TOKEN in the Dependabot auto-merge workflow ([6e7ce9a](https://github.com/lukislp/HouseHoldPlanner/commit/6e7ce9ab46dc454628ba4597e8a7b1865aec1892))
+
 ## [1.1.12](https://github.com/lukislp/HouseHoldPlanner/compare/v1.1.11...v1.1.12) (2026-09-11)
 
 
