@@ -1,3 +1,10 @@
+## [1.1.10](https://github.com/lukislp/HouseHoldPlanner/compare/v1.1.9...v1.1.10) (2026-09-11)
+
+
+### Bug Fixes
+
+* **ci:** push release commits as a deploy key so the default branch can be ruleset-protected ([e5356ac](https://github.com/lukislp/HouseHoldPlanner/commit/e5356ac674d1af058c3c0e50997be8b79e850727))
+
 ## [1.1.9](https://github.com/lukislp/HouseHoldPlanner/compare/v1.1.8...v1.1.9) (2026-09-03)
 
 
