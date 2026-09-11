@@ -107,6 +107,13 @@ using (var scope = app.Services.CreateScope())
 // Use forwarded headers FIRST (CRITICAL for Nginx proxy)
 app.UseForwardedHeaders();
 
+// Clickjacking protection: this API is never meant to be framed.
+app.Use(async (context, next) =>
+{
+    context.Response.Headers["X-Frame-Options"] = "DENY";
+    await next();
+});
+
 // Configure the HTTP request pipeline.
 if (app.Environment.IsDevelopment())
 {
