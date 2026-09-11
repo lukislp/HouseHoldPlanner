@@ -1,3 +1,10 @@
+## [1.1.12](https://github.com/lukislp/HouseHoldPlanner/compare/v1.1.11...v1.1.12) (2026-09-11)
+
+
+### Bug Fixes
+
+* resolve CodeQL findings ([#14](https://github.com/lukislp/HouseHoldPlanner/issues/14)) ([a6555cb](https://github.com/lukislp/HouseHoldPlanner/commit/a6555cbda5f1f83aa2df3694f32e8f04c7b847a8))
+
 ## [1.1.11](https://github.com/lukislp/HouseHoldPlanner/compare/v1.1.10...v1.1.11) (2026-09-11)
 
 
