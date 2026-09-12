@@ -1,3 +1,10 @@
+## [1.1.16](https://github.com/lukislp/HouseHoldPlanner/compare/v1.1.15...v1.1.16) (2026-09-12)
+
+
+### Bug Fixes
+
+* **client:** override Dispose in the timer-backed pages instead of hiding it ([#25](https://github.com/lukislp/HouseHoldPlanner/issues/25)) ([a7100e5](https://github.com/lukislp/HouseHoldPlanner/commit/a7100e565af91e3347a609e9d6e7a9cb9c07c509))
+
 ## [1.1.15](https://github.com/lukislp/HouseHoldPlanner/compare/v1.1.14...v1.1.15) (2026-09-12)
 
 
