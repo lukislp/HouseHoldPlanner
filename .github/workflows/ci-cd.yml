@@ -36,7 +36,7 @@ jobs:
           key: nuget-${{ runner.os }}-${{ hashFiles('**/*.csproj', 'HaushaltsPlaner.sln') }}
           restore-keys: |
             nuget-${{ runner.os }}-
-      - run: dotnet restore HaushaltsPlaner.sln
+      - run: dotnet restore HaushaltsPlaner.sln --locked-mode
       - run: dotnet build HaushaltsPlaner.sln --configuration ${{ env.CONFIGURATION }} --no-restore
       # No test project exists in this repo yet, so this is the closest thing to a real
       # smoke test: start the server against a throwaway JWT key and SQLite db, confirm
@@ -91,7 +91,7 @@ jobs:
           key: nuget-${{ runner.os }}-${{ hashFiles('**/*.csproj', 'HaushaltsPlaner.sln') }}
           restore-keys: |
             nuget-${{ runner.os }}-
-      - run: dotnet restore HaushaltsPlaner.sln
+      - run: dotnet restore HaushaltsPlaner.sln --locked-mode
       - run: |
           dotnet list HaushaltsPlaner.sln package --vulnerable --include-transitive --format json > nuget-vulnerabilities.json
           cat nuget-vulnerabilities.json
