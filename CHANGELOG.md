@@ -1,3 +1,10 @@
+## [1.1.15](https://github.com/lukislp/HouseHoldPlanner/compare/v1.1.14...v1.1.15) (2026-09-12)
+
+
+### Bug Fixes
+
+* **import:** never create a nameless ingredient from a quantity-only line ([#23](https://github.com/lukislp/HouseHoldPlanner/issues/23)) ([72f9a5e](https://github.com/lukislp/HouseHoldPlanner/commit/72f9a5e93100a80a72f07608d1f9e357538f5e67))
+
 ## [1.1.14](https://github.com/lukislp/HouseHoldPlanner/compare/v1.1.13...v1.1.14) (2026-09-12)
 
 
