@@ -1,3 +1,10 @@
+## [1.1.14](https://github.com/lukislp/HouseHoldPlanner/compare/v1.1.13...v1.1.14) (2026-09-12)
+
+
+### Bug Fixes
+
+* **deps:** Bump Microsoft.AspNetCore.Authentication.JwtBearer and 6 others ([58cd02f](https://github.com/lukislp/HouseHoldPlanner/commit/58cd02fe9a150a786af0a54b02569292d4fbf04e))
+
 ## [1.1.13](https://github.com/lukislp/HouseHoldPlanner/compare/v1.1.12...v1.1.13) (2026-09-11)
 
 
