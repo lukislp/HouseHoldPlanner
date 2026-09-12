@@ -38,9 +38,10 @@ jobs:
             nuget-${{ runner.os }}-
       - run: dotnet restore HaushaltsPlaner.sln --locked-mode
       - run: dotnet build HaushaltsPlaner.sln --configuration ${{ env.CONFIGURATION }} --no-restore
-      # No test project exists in this repo yet, so this is the closest thing to a real
-      # smoke test: start the server against a throwaway JWT key and SQLite db, confirm
-      # EnsureCreated() + startup genuinely succeed by hitting the new /health endpoint.
+      - run: dotnet test HaushaltsPlaner.sln --configuration ${{ env.CONFIGURATION }} --no-build
+      # The unit tests cover the pure parsers only, so this remains the closest thing to a
+      # real smoke test: start the server against a throwaway JWT key and SQLite db, confirm
+      # EnsureCreated() + startup genuinely succeed by hitting the /health endpoint.
       - name: Smoke-check server startup
         env:
           ASPNETCORE_URLS: http://+:5242
