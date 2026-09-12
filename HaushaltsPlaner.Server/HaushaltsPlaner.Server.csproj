@@ -28,4 +28,8 @@
     <ProjectReference Include="..\HaushaltsPlaner.Shared\HaushaltsPlaner.Shared.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <InternalsVisibleTo Include="HaushaltsPlaner.Tests" />
+  </ItemGroup>
+
 </Project>

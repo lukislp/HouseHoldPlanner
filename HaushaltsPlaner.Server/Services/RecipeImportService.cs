@@ -1,4 +1,4 @@
-﻿using System.Text.RegularExpressions;
+using System.Text.RegularExpressions;
 using HtmlAgilityPack;
 using HaushaltsPlaner.Shared.DTOs;
 
@@ -341,7 +341,7 @@ public class RecipeImportService
         return recipe;
     }
 
-    private (decimal? amount, string? unit, string name) ParseIngredientLine(string line)
+    internal static (decimal? amount, string? unit, string name) ParseIngredientLine(string line)
     {
         if (string.IsNullOrWhiteSpace(line))
             return (null, null, line);
@@ -356,7 +356,10 @@ public class RecipeImportService
             {
                 var unit = match.Groups[2].Value;
                 var name = match.Groups[3].Value.Trim();
-                return (amount, string.IsNullOrWhiteSpace(unit) ? null : unit, name);
+                // "1  " matches with a blank name - keep the line as the name instead of
+                // creating a nameless ingredient (found by the property tests).
+                if (name.Length > 0)
+                    return (amount, string.IsNullOrWhiteSpace(unit) ? null : unit, name);
             }
         }
 
@@ -364,7 +367,7 @@ public class RecipeImportService
         return (null, null, line.Trim());
     }
 
-    private string CleanHtmlText(string html)
+    internal static string CleanHtmlText(string html)
     {
         if (string.IsNullOrWhiteSpace(html))
             return "";
