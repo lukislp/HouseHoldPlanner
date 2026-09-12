@@ -1,4 +1,4 @@
-﻿@page "/lists"
+@page "/lists"
 @using HaushaltsPlaner.Shared.DTOs
 @using HaushaltsPlaner.Client.Services
 @inject CalendarService CalendarService
@@ -432,8 +432,11 @@
         Navigation.NavigateTo("/home");
     }
     
-    public void Dispose()
+    public override void Dispose()
     {
         refreshTimer?.Dispose();
+        // The base class unsubscribes from I18n.OnLanguageChanged; hiding its Dispose() (CS0114)
+        // left every visited page subscribed forever.
+        base.Dispose();
     }
 }
