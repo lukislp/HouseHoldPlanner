@@ -370,17 +370,17 @@
     }
 }
 
-/* Zusätzliche visuelle Verbesserungen */
+/* Additional visual refinements */
 .form-group:focus-within label {
     color: #667eea;
 }
 
-/* Glatte Übergänge für alle interaktiven Elemente */
+/* Smooth transitions for all interactive elements */
 * {
     -webkit-tap-highlight-color: transparent;
 }
 
-/* Verbesserte Fokus-Indikatoren für Accessibility */
+/* Improved focus indicators for accessibility */
 *:focus-visible {
     outline: 2px solid #667eea;
     outline-offset: 3px;
