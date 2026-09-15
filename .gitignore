@@ -425,8 +425,6 @@ Logs/
 !.github/ISSUE_TEMPLATE/
 !.github/PULL_REQUEST_TEMPLATE.md
 
-CLAUDE.md
-
 # HTTP request files (Visual Studio)
 *.http
 
