@@ -1,6 +1,6 @@
 .chat-container {
     height: 100vh;
-    height: 100dvh; /* Dynamic viewport height für mobile Browser */
+    height: 100dvh; /* Dynamic viewport height for mobile browsers */
   max-height: 100vh;
     max-height: 100dvh;
     background: linear-gradient(to bottom, #f9fafb 0%, #f3f4f6 100%);
