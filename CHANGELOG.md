@@ -1,3 +1,10 @@
+## [1.1.17](https://github.com/lukislp/HouseHoldPlanner/compare/v1.1.16...v1.1.17) (2026-09-15)
+
+
+### Bug Fixes
+
+* run both containers as an unprivileged user ([#37](https://github.com/lukislp/HouseHoldPlanner/issues/37)) ([01b8d98](https://github.com/lukislp/HouseHoldPlanner/commit/01b8d981eccb20b6c54ee95fc7e5e56ae1183a6e))
+
 ## [1.1.16](https://github.com/lukislp/HouseHoldPlanner/compare/v1.1.15...v1.1.16) (2026-09-12)
 
 
