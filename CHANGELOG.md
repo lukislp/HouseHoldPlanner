@@ -1,3 +1,10 @@
+## [1.1.18](https://github.com/lukislp/HouseHoldPlanner/compare/v1.1.17...v1.1.18) (2026-09-15)
+
+
+### Bug Fixes
+
+* **client:** remove leftover NEU change markers from comments ([#40](https://github.com/lukislp/HouseHoldPlanner/issues/40)) ([ba1c8ac](https://github.com/lukislp/HouseHoldPlanner/commit/ba1c8ac3627cbb1c97cae466b938a08594515cb4))
+
 ## [1.1.17](https://github.com/lukislp/HouseHoldPlanner/compare/v1.1.16...v1.1.17) (2026-09-15)
 
 
