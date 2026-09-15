@@ -17,7 +17,7 @@ services:
       context: .
       dockerfile: HaushaltsPlaner.Client/Dockerfile
     ports:
-      - "5004:80"
+      - "5004:8080"
     depends_on:
       - server
     restart: unless-stopped
