@@ -14,6 +14,21 @@ RUN dotnet publish "HaushaltsPlaner.Server/HaushaltsPlaner.Server.csproj" -c Rel
 
 FROM base AS final
 WORKDIR /app
-COPY --from=build /app/publish .
+COPY --from=build --chown=app:app /app/publish .
+# Don't run as root: the aspnet base image has shipped its own "app" user (UID 1654) since
+# .NET 8, so no user has to be created here - the same pattern the other .NET services in this
+# account use. Two locations have to stay writable at runtime: /app/data holds the SQLite
+# database (docker-compose.yml mounts the db-data volume there) and /app/wwwroot/uploads
+# receives profile pictures and household background images, which ProfileService/HomeService
+# create relative to the working directory.
+# The chown has to happen BEFORE the VOLUME declaration so the ownership is baked into the
+# image layer: a freshly created named volume inherits content and ownership from the image on
+# its first mount. Watch out for an EXISTING deployment - a volume already populated with
+# root-owned files keeps that ownership, and a one-time
+#   docker run --rm -v haushaltsplaner_db-data:/d alpine chown -R 1654:1654 /d
+# is needed there, otherwise the app user can no longer write to the database.
+RUN mkdir -p /app/data /app/wwwroot/uploads/profiles /app/wwwroot/uploads/backgrounds \
+    && chown -R app:app /app/data /app/wwwroot
 VOLUME ["/app/data"]
+USER app
 ENTRYPOINT ["dotnet", "HaushaltsPlaner.Server.dll"]

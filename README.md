@@ -149,7 +149,7 @@ The setup runs two containers:
 | Container | Description | Port |
 |---|---|---|
 | `server` | ASP.NET Core API | internal (5242) |
-| `client` | nginx serving the WASM bundle | `5004:80` |
+| `client` | nginx serving the WASM bundle | `5004:8080` |
 
 The database is stored in a named volume mounted at `/app/data` inside the server container.
 
@@ -174,7 +174,7 @@ services:
       context: .
       dockerfile: HaushaltsPlaner.Client/Dockerfile
     ports:
-      - "5004:80"
+      - "5004:8080"
     depends_on:
       - server
     restart: unless-stopped
