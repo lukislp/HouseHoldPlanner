@@ -15,7 +15,7 @@ RUN dotnet publish "HaushaltsPlaner.Client/HaushaltsPlaner.Client.csproj" -c Rel
 # Its own /etc/nginx/nginx.conf already keeps the pid file and every temp directory under /tmp,
 # so nothing outside the server block needs adjusting. The digest covers a multi-arch index
 # that includes linux/arm64, which the release workflow builds a native leg for.
-FROM nginxinc/nginx-unprivileged:alpine@sha256:19c132c9ab02d3b783f478743dafc7a7f42e27aa7d2bdcbec1bb1128ca8f2a07 AS final
+FROM nginxinc/nginx-unprivileged:alpine@sha256:b54ac358b83fc6c965793fd271839b4ea4cdb6e99895bb19618cbc2ca152d972 AS final
 # The base image already ends on USER 101; switch back to root for the copy steps only, because
 # /usr/share/nginx/html is root-owned and the appsettings.json below is written into it.
 USER root
