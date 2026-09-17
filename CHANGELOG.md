@@ -1,3 +1,10 @@
+## [1.1.20](https://github.com/lukislp/HouseHoldPlanner/compare/v1.1.19...v1.1.20) (2026-09-17)
+
+
+### Bug Fixes
+
+* **docker:** Bump nginxinc/nginx-unprivileged in /HaushaltsPlaner.Client ([#42](https://github.com/lukislp/HouseHoldPlanner/issues/42)) ([522c2a5](https://github.com/lukislp/HouseHoldPlanner/commit/522c2a52b338211197b921397b2fc0db23cea2e1))
+
 ## [1.1.19](https://github.com/lukislp/HouseHoldPlanner/compare/v1.1.18...v1.1.19) (2026-09-17)
 
 
