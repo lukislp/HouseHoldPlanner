@@ -1,3 +1,10 @@
+## [1.1.19](https://github.com/lukislp/HouseHoldPlanner/compare/v1.1.18...v1.1.19) (2026-09-17)
+
+
+### Bug Fixes
+
+* **deps:** Bump the dotnet group with 1 update ([71964f2](https://github.com/lukislp/HouseHoldPlanner/commit/71964f25b2eb85eeb269fcae41c38483f4df267b))
+
 ## [1.1.18](https://github.com/lukislp/HouseHoldPlanner/compare/v1.1.17...v1.1.18) (2026-09-15)
 
 
