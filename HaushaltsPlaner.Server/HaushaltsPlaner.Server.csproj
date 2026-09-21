@@ -15,7 +15,7 @@
     <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="10.0.12" />
     <PackageReference Include="Microsoft.AspNetCore.SignalR.Client" Version="10.0.12" />
     <PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite" Version="10.0.12" />
-    <PackageReference Include="System.IdentityModel.Tokens.Jwt" Version="8.22.0" />
+    <PackageReference Include="System.IdentityModel.Tokens.Jwt" Version="8.23.0" />
 
     <!-- Transitive deps pinned to patched versions to close NU1903 High-severity advisories
          (Microsoft.AspNetCore.OpenApi/Microsoft.EntityFrameworkCore.Sqlite otherwise pull in
