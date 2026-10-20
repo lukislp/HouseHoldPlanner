@@ -20,7 +20,7 @@
     <!-- Transitive deps pinned to patched versions to close NU1903 High-severity advisories
          (Microsoft.AspNetCore.OpenApi/Microsoft.EntityFrameworkCore.Sqlite otherwise pull in
          vulnerable Microsoft.OpenApi 2.0.0 / SQLitePCLRaw.lib.e_sqlite3 2.1.11). -->
-    <PackageReference Include="Microsoft.OpenApi" Version="2.12.2" />
+    <PackageReference Include="Microsoft.OpenApi" Version="2.13.0" />
     <PackageReference Include="SQLitePCLRaw.lib.e_sqlite3" Version="3.53.3" />
   </ItemGroup>
 
