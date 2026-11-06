@@ -1,0 +1,28 @@
+# Policy of the lktec-bot GitHub App for this repository. Committed to the default branch: the
+# bot reads it from there, never from a pull request. See docs/modules/automerge.md in
+# lukislp/lktec-bot for every key.
+version: 1
+modules:
+  automerge:
+    enabled: true
+    # patch, minor and digest updates are armed; manual leaves majors to a person.
+    majors: manual
+    # auto arms a pull request that changes .github/workflows/; manual leaves it to a person.
+    workflow-files: auto
+    # How GitHub merges once the checks are green.
+    method: squash
+    # Dependency names (exact, case-insensitive) that are never approved or armed.
+    exclude: []
+
+  # Tags and publishes a release from the Conventional Commits on the default branch (see
+  # docs/modules/release.md in lukislp/lktec-bot).
+  release:
+    enabled: true
+    mode: tag
+    tag-format: "v{version}"
+    branch: main
+    # Only used while no tag matches tag-format.
+    first-version: "1.0.0"
+    # The former .releaserc.json carried no releaseRules: the defaults apply (breaking major,
+    # feat minor, fix/perf/revert patch, everything else nothing).
+    rules: []
